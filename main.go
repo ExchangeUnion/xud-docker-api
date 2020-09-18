@@ -75,7 +75,7 @@ func main() {
 	r := mux.NewRouter()
 	xud := NewXudService(client)
 
-	r.HandleFunc("/api/v1/xud/info", xud.GetInfo).Methods("GET")
+	r.HandleFunc("/api/v1/xud/getinfo", xud.GetInfo).Methods("GET")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
