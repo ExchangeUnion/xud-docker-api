@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	pb "github.com/ExchangeUnion/xud-docker-api-poc/xudrpc"
 	"github.com/gorilla/mux"
@@ -13,18 +14,40 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-
 type XudRpc struct {
 	Host string
 	Port int
 	Cert string
 }
 
+type Restful404Handler struct{}
+type Restful405Handler struct{}
+
+func (Restful404Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusNotFound)
+	err := json.NewEncoder(w).Encode(map[string]string{"message": "not found"})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (Restful405Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusMethodNotAllowed)
+	err := json.NewEncoder(w).Encode(map[string]string{"message": "method not allowed"})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
 
 func main() {
+	var port int
 	xudRpc := XudRpc{}
 
-	app := &cli.App {
+	app := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name: "xud.rpchost",
@@ -35,11 +58,16 @@ func main() {
 			&cli.StringFlag{
 				Name: "xud.rpccert",
 			},
+			&cli.IntFlag{
+				Name:  "port, p",
+				Value: 8080,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			xudRpc.Host = c.String("xud.rpchost")
 			xudRpc.Port = c.Int("xud.rpcport")
 			xudRpc.Cert = c.String("xud.rpccert")
+			port = c.Int("port")
 			return nil
 		},
 	}
@@ -73,6 +101,9 @@ func main() {
 	client := pb.NewXudClient(conn)
 
 	r := mux.NewRouter()
+	r.NotFoundHandler = Restful404Handler{}
+	r.MethodNotAllowedHandler = Restful405Handler{}
+
 	xud := NewXudService(client)
 
 	r.HandleFunc("/api/v1/xud/getinfo", xud.GetInfo).Methods("GET")
@@ -81,5 +112,6 @@ func main() {
 	r.HandleFunc("/api/v1/xud/tradehistory", xud.GetTradeHistory).Methods("GET")
 	r.HandleFunc("/api/v1/xud/tradehistory", xud.GetTradeHistory).Queries("limit", "{limit}").Methods("GET")
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	addr := fmt.Sprintf(":%d", port)
+	log.Fatal(http.ListenAndServe(addr, r))
 }
