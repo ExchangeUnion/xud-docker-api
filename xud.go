@@ -23,12 +23,14 @@ func (t *XudService) GetInfo(w http.ResponseWriter, r *http.Request) {
 	resp, err := t.client.GetInfo(ctx, &req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	m := jsonpb.Marshaler{}
 	w.Header().Set("Content-Type", "application/json")
 	err = m.Marshal(w, resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
