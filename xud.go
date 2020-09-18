@@ -4,7 +4,6 @@ import (
 	"context"
 	pb "github.com/ExchangeUnion/xud-docker-api-poc/xudrpc"
 	"github.com/golang/protobuf/jsonpb"
-	"log"
 	"net/http"
 )
 
@@ -23,13 +22,13 @@ func (t *XudService) GetInfo(w http.ResponseWriter, r *http.Request) {
 	req := pb.GetInfoRequest{}
 	resp, err := t.client.GetInfo(ctx, &req)
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	m := jsonpb.Marshaler{}
 	w.Header().Set("Content-Type", "application/json")
 	err = m.Marshal(w, resp)
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
