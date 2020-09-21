@@ -109,8 +109,8 @@ func main() {
 	r.HandleFunc("/api/v1/xud/getinfo", xud.GetInfo).Methods("GET")
 	r.HandleFunc("/api/v1/xud/getbalance", xud.GetBalance).Methods("GET")
 	r.HandleFunc("/api/v1/xud/getbalance/{currency}", xud.GetBalance).Methods("GET")
-	r.HandleFunc("/api/v1/xud/tradehistory", xud.GetTradeHistory).Methods("GET")
 	r.HandleFunc("/api/v1/xud/tradehistory", xud.GetTradeHistory).Queries("limit", "{limit}").Methods("GET")
+	r.HandleFunc("/api/v1/xud/tradehistory", xud.GetTradeHistory).Methods("GET")
 
 	addr := fmt.Sprintf(":%d", port)
 	log.Fatal(http.ListenAndServe(addr, r))
