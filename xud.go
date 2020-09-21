@@ -40,7 +40,7 @@ func (t *XudService) GetInfo(w http.ResponseWriter, r *http.Request) {
 		JsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	m := jsonpb.Marshaler{}
+	m := jsonpb.Marshaler{EmitDefaults: true}
 	err = m.Marshal(w, resp)
 	if err != nil {
 		JsonError(w, err.Error(), http.StatusInternalServerError)
@@ -59,7 +59,7 @@ func (t *XudService) GetBalance(w http.ResponseWriter, r *http.Request) {
 		JsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	m := jsonpb.Marshaler{}
+	m := jsonpb.Marshaler{EmitDefaults: true}
 	err = m.Marshal(w, resp)
 	if err != nil {
 		JsonError(w, err.Error(), http.StatusInternalServerError)
@@ -84,7 +84,7 @@ func (t *XudService) GetTradeHistory(w http.ResponseWriter, r *http.Request) {
 		JsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	m := jsonpb.Marshaler{}
+	m := jsonpb.Marshaler{EmitDefaults: true}
 	err = m.Marshal(w, resp)
 	if err != nil {
 		JsonError(w, err.Error(), http.StatusInternalServerError)
