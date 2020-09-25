@@ -23,14 +23,32 @@ type Manager struct {
 	services []Service
 }
 
+type LightProviders struct {
+	Testnet []string
+	Mainnet []string
+}
+
 func NewManager(network string) (*Manager, error) {
+	lightProviders := LightProviders{
+		Testnet: []string{
+			"http://eth.kilrau.com:52041",
+			"http://michael1011.at:8546",
+			"http://gethxudxv2k4pv5t5a5lswq2hcv3icmj3uwg7m2n2vuykiyv77legiad.onion:8546",
+		},
+		Mainnet: []string{
+			"http://eth.kilrau.com:41007",
+			"http://michael1011.at:8545",
+			"http://gethxudxv2k4pv5t5a5lswq2hcv3icmj3uwg7m2n2vuykiyv77legiad.onion:8545",
+		},
+	}
+
 	xudSvc := xud.New("xud", "testnet_xud_1")
 	lndbtcSvc := lnd.New("lndbtc", "testnet_lndbtc_1", "bitcoin")
 	lndltcSvc := lnd.New("lndltc", "testnet_lndltc_1", "litecoin")
 	connextSvc := connext.New("connext", "testnet_connext_1")
 	bitcoindSvc := bitcoind.New("bitcoind", "testnet_bitcoind_1", "lndbtc")
 	litecoindSvc := litecoind.New("litecoind", "testnet_litecoind_1", "lndltc")
-	gethSvc := geth.New("geth", "testnet_geth_1")
+	gethSvc := geth.New("geth", "testnet_geth_1", "connext", lightProviders.Testnet)
 	arbySvc := arby.New("arby", "testnet_arby_1")
 	boltzSvc := boltz.New("boltz", "testnet_boltz_1")
 	webuiSvc := webui.New("webui", "testnet_webui_1")

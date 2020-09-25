@@ -1,18 +1,21 @@
 package geth
 
 import (
+	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/connext"
 	"github.com/ybbus/jsonrpc"
-	"log"
 	"strconv"
 	"strings"
 )
 
 type GethService struct {
 	*service.SingleContainerService
-	rpcOptions *service.RpcOptions
-	rpcClient  jsonrpc.RPCClient
+	rpcOptions     *service.RpcOptions
+	rpcClient      jsonrpc.RPCClient
+	l2ServiceName  string
+	lightProviders []string
 }
 
 type Mode string
@@ -25,9 +28,11 @@ const (
 	Unknown  Mode = "unknown"
 )
 
-func New(name string, containerName string) *GethService {
+func New(name string, containerName string, l2ServiceName string, lightProviders []string) *GethService {
 	return &GethService{
 		SingleContainerService: service.NewSingleContainerService(name, containerName),
+		l2ServiceName:          l2ServiceName,
+		lightProviders:         lightProviders,
 	}
 }
 
@@ -75,8 +80,6 @@ func (t *GethService) EthSyncing() (*Syncing, error) {
 		}
 		return nil, nil
 	}
-
-	log.Printf("syncing is %v", syncing)
 
 	currentBlock, err := parseHex(syncing["currentBlock"])
 	if err != nil {
@@ -128,16 +131,139 @@ func (t *GethService) EthBlockNumber() (int64, error) {
 	return blockNumber, nil
 }
 
+func explainNetVersion(version string) string {
+	switch version {
+	case "1":
+		return "Mainnet"
+	case "2":
+		return "Testnet (Morden, deprecated!)"
+	case "3":
+		return "Testnet (Ropsten)"
+	case "4":
+		return "Testnet (Rinkeby)"
+	case "42":
+		return "Testnet (Kovan)"
+	default:
+		return version
+	}
+}
+
 func (t *GethService) checkEthRpc(url string) bool {
+	client := jsonrpc.NewClientWithOpts(url, &jsonrpc.RPCClientOpts{})
+	result, err := client.Call("net_version")
+	if err != nil {
+		return false
+	}
+	version, err := result.GetString()
+	if err != nil {
+		return false
+	}
+	t.GetLogger().Infof("Ethereum provider %s net_version is %s", url, explainNetVersion(version))
 	return true
 }
 
-func (t *GethService) getMode() Mode {
-	// TODO get geth mode
-	return Unknown
+func (t *GethService) getL2Service() (*connext.ConnextService, error) {
+	s, err := t.GetServiceManager().GetService(t.l2ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	connextSvc, ok := s.(*connext.ConnextService)
+	if !ok {
+		return nil, errors.New("cannot convert to ConnextService")
+	}
+	return connextSvc, nil
+}
+
+func (t *GethService) isLightProvider(provider string) bool {
+	for _, item := range t.lightProviders {
+		if item == provider {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *GethService) getProvider() (string, error) {
+	connextSvc, err := t.getL2Service()
+	if err != nil {
+		return "", err
+	}
+
+	provider, err := connextSvc.GetEthProvider()
+	if err != nil {
+		return "", err
+	}
+
+	return provider, nil
+}
+
+func (t *GethService) getMode() (Mode, error) {
+	provider, err := t.getProvider()
+	if err != nil {
+		return Unknown, err
+	}
+
+	if provider == "http://geth:8545" {
+		return Native, nil
+	} else if strings.Contains(provider, "infura") {
+		return Infura, nil
+	} else if t.isLightProvider(provider) {
+		return Light, nil
+	} else {
+		return External, nil
+	}
+}
+
+func (t *GethService) getExternalStatus() (string, error) {
+	provider, err := t.getProvider()
+	if err != nil {
+		return "No provider", err
+	}
+	if t.checkEthRpc(provider) {
+		return "Ready (connected to external)", nil
+	} else {
+		return "Unavailable (connection to external failed)", nil
+	}
+}
+
+func (t *GethService) getInfuraStatus() (string, error) {
+	provider, err := t.getProvider()
+	if err != nil {
+		return "No provider", err
+	}
+	if t.checkEthRpc(provider) {
+		return "Ready (connected to Infura)", nil
+	} else {
+		return "Unavailable (connection to Infura failed)", nil
+	}
+}
+
+func (t *GethService) getLightStatus() (string, error) {
+	provider, err := t.getProvider()
+	if err != nil {
+		return "No provider", err
+	}
+	if t.checkEthRpc(provider) {
+		return "Ready (light mode)", nil
+	} else {
+		return "Unavailable (light mode failed)", nil
+	}
 }
 
 func (t *GethService) GetStatus() (string, error) {
+	mode, err := t.getMode()
+	if err != nil {
+		return "", err
+	}
+
+	if mode == External {
+		return t.getExternalStatus()
+	} else if mode == Infura {
+		return t.getInfuraStatus()
+	} else if mode == Light {
+		return t.getLightStatus()
+	}
+
 	status, err := t.SingleContainerService.GetStatus()
 	if err != nil {
 		return "", err

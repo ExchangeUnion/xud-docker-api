@@ -1,15 +1,20 @@
 package service
 
-import "github.com/gorilla/mux"
+import (
+	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
+)
 
 type AbstractService struct {
 	name           string
 	serviceManager ServiceManager
+	logger         *logrus.Logger
 }
 
 func NewAbstractService(name string) *AbstractService {
 	return &AbstractService{
-		name: name,
+		name:   name,
+		logger: logrus.New(),
 	}
 }
 
@@ -33,4 +38,8 @@ func (t *AbstractService) SetServiceManager(serviceManager ServiceManager) {
 
 func (t *AbstractService) GetServiceManager() ServiceManager {
 	return t.serviceManager
+}
+
+func (t *AbstractService) GetLogger() *logrus.Logger {
+	return t.logger
 }

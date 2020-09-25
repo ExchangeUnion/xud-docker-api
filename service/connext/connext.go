@@ -1,8 +1,11 @@
 package connext
 
 import (
+	"errors"
+	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	"net/http"
+	"strings"
 )
 
 type ConnextService struct {
@@ -33,4 +36,20 @@ func (t *ConnextService) GetStatus() (string, error) {
 	} else {
 		return status, nil
 	}
+}
+
+func (t *ConnextService) GetEthProvider() (string, error) {
+	container, err := t.GetContainer()
+	if err != nil {
+		return "", err
+	}
+	key := "CONNEXT_ETH_PROVIDER_URL"
+	prefix := key + "="
+	for _, env := range container.Config.Env {
+		if strings.HasPrefix(env, prefix) {
+			url := strings.Replace(env, prefix, "", 1)
+			return url, nil
+		}
+	}
+	return "", errors.New(fmt.Sprintf("%s not found", key))
 }

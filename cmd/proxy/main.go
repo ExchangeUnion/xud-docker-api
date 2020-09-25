@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
 	"os"
@@ -34,8 +35,9 @@ func (Restful405Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 func main() {
+	logger := logrus.New()
+
 	var port int
 	//xudRpc := XudRpc{}
 
@@ -64,29 +66,28 @@ func main() {
 		},
 	}
 
-	// parse command-line options
+	logger.Info("Parsing command-line arguments")
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// create services
-	manager, err:= NewManager("testnet")
+	logger.Info("Creating service manager")
+	manager, err := NewManager("testnet")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer manager.Close()
 
-
-	// create router
+	logger.Info("Creating router")
 	r := mux.NewRouter()
 	r.NotFoundHandler = Restful404Handler{}
 	r.MethodNotAllowedHandler = Restful405Handler{}
 
+	logger.Info("Configuring router")
 	manager.ConfigureRouter(r)
 
-	// run server
-	log.Printf("Server started on :%d", port)
+	logger.Infof("Starting server on :%d", port)
 	addr := fmt.Sprintf(":%d", port)
 	err = http.ListenAndServe(addr, r)
 	if err != nil {
