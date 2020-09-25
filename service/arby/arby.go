@@ -2,7 +2,6 @@ package arby
 
 import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
-	"github.com/gorilla/mux"
 )
 
 type ArbyService struct {
@@ -18,6 +17,14 @@ func New(
 	}
 }
 
-func (t *ArbyService) ConfigureRouter(r *mux.Router) {
-	t.SingleContainerService.AbstractService.ConfigureRouter(r)
+func (t *ArbyService) GetStatus() (string, error) {
+	status, err := t.SingleContainerService.GetStatus()
+	if err != nil {
+		return "", err
+	}
+	if status == "Container running" {
+		return "Ready", nil
+	} else {
+		return status, nil
+	}
 }
