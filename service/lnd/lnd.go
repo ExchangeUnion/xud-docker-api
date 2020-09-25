@@ -2,22 +2,31 @@ package lnd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/lnd/lnrpc"
+	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/gin-gonic/gin"
+	"github.com/golang/protobuf/jsonpb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"gopkg.in/ini.v1"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"strings"
 )
 
 type LndService struct {
 	*service.SingleContainerService
 	rpcOptions *service.RpcOptions
+	rpcClient  pb.LightningClient
 	chain      string
 }
 
@@ -37,7 +46,37 @@ func New(name string, containerName string, chain string) *LndService {
 }
 
 func (t *LndService) ConfigureRpc(options *service.RpcOptions) {
+	t.rpcOptions = options
+}
 
+func (t *LndService) getRpcClient() (pb.LightningClient, error) {
+	if t.rpcClient == nil {
+		creds, err := credentials.NewClientTLSFromFile(t.rpcOptions.TlsCert, "localhost")
+		if err != nil {
+			return nil, err
+		}
+
+		addr := fmt.Sprintf("%s:%d", t.rpcOptions.Host, t.rpcOptions.Port)
+		var opts []grpc.DialOption
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+		opts = append(opts, grpc.WithBlock())
+		//opts = append(opts, grpc.WithTimeout(time.Duration(10000)))
+
+		macaroonCred, ok := t.rpcOptions.Credential.(service.MacaroonCredential)
+		if !ok {
+			return nil, errors.New("MacaroonCredential is required")
+		}
+
+		opts = append(opts, grpc.WithPerRPCCredentials(macaroonCred))
+
+		conn, err := grpc.Dial(addr, opts...)
+		if err != nil {
+			return nil, err
+		}
+
+		t.rpcClient = pb.NewLightningClient(conn)
+	}
+	return t.rpcClient, nil
 }
 
 func (t *LndService) loadConfFileFallback() (string, error) {
@@ -179,4 +218,79 @@ func (t *LndService) GetConfigValues(key string) ([]string, error) {
 	}
 
 	return result, nil
+}
+
+func (t *LndService) GetInfo() (*pb.GetInfoResponse, error) {
+	client, err := t.getRpcClient()
+	if err != nil {
+		return nil, err
+	}
+
+	req := pb.GetInfoRequest{}
+
+	return client.GetInfo(context.Background(), &req)
+}
+
+func (t *LndService) ConfigureRouter(r *gin.Engine) {
+	r.GET(fmt.Sprintf("/api/v1/%s/getinfo", t.GetName()), func(c *gin.Context) {
+		resp, err := t.GetInfo()
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		m := jsonpb.Marshaler{EmitDefaults: true}
+		err = m.Marshal(c.Writer, resp)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
+}
+
+func (t *LndService) getCurrentHeight() (uint32, error) {
+	// TODO get lnd current height from log
+	return 0, nil
+}
+
+func (t *LndService) GetStatus() (string, error) {
+	status, err := t.SingleContainerService.GetStatus()
+	if err != nil {
+		return "", err
+	}
+	if status == "Container running" {
+		info, err := t.GetInfo()
+		if err != nil {
+			if strings.Contains(err.Error(), "Wallet is encrypted") {
+				return "Wallet locked. Unlock with xucli unlock.", nil
+			}
+			return "", err
+		}
+
+		syncedToChain := info.SyncedToChain
+		total := info.BlockHeight
+		current, err := t.getCurrentHeight()
+
+		if err == nil {
+			if total <= current {
+				return "Ready", nil
+			} else {
+				p := float32(current) / float32(total) * 100.0
+				if p > 0.005 {
+					p = p - 0.005
+				} else {
+					p = 0
+				}
+				return fmt.Sprintf("Syncing %.2f%% (%d/%d)", p, current, total), nil
+			}
+		} else {
+			if syncedToChain {
+				return "Ready", nil
+			} else {
+				return "Syncing", nil
+			}
+		}
+	} else {
+		return status, nil
+	}
 }

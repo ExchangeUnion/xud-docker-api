@@ -76,29 +76,33 @@ func NewManager(network string) (*Manager, error) {
 	xudSvc.SetServiceManager(&manager)
 	xudSvc.SetDockerClientFactory(dockerClientFactory)
 	xudRpc := RpcOptions{
-		Host: "xud",
-		Port: 18886,
-		Credential: TlsFileCredential{
-			File: "/root/.xud/tls.cert",
-		},
+		Host:    "xud",
+		Port:    18886,
+		TlsCert: "/root/.xud/tls.cert",
 	}
 	xudSvc.ConfigureRpc(&xudRpc)
 
 	lndbtcSvc.SetServiceManager(&manager)
 	lndbtcSvc.SetDockerClientFactory(dockerClientFactory)
 	lndbtcRpc := RpcOptions{
-		Host:       "lndbtc",
-		Port:       10009,
-		Credential: MacaroonFileCredential{},
+		Host:    "lndbtc",
+		Port:    10009,
+		TlsCert: "/root/.lndbtc/tls.cert",
+		Credential: MacaroonCredential{
+			Readonly: "/root/.lndbtc/data/chain/bitcoin/testnet/readonly.macaroon",
+		},
 	}
 	lndbtcSvc.ConfigureRpc(&lndbtcRpc)
 
 	lndltcSvc.SetServiceManager(&manager)
 	lndltcSvc.SetDockerClientFactory(dockerClientFactory)
 	lndltcRpc := RpcOptions{
-		Host:       "lndltc",
-		Port:       10009,
-		Credential: MacaroonFileCredential{},
+		Host:    "lndltc",
+		Port:    10009,
+		TlsCert: "/root/.lndltc/tls.cert",
+		Credential: MacaroonCredential{
+			Readonly: "/root/.lndltc/data/chain/litecoin/testnet/readonly.macaroon",
+		},
 	}
 	lndltcSvc.ConfigureRpc(&lndltcRpc)
 
@@ -132,9 +136,8 @@ func NewManager(network string) (*Manager, error) {
 	gethSvc.SetServiceManager(&manager)
 	gethSvc.SetDockerClientFactory(dockerClientFactory)
 	gethRpc := RpcOptions{
-		Host:       "geth",
-		Port:       8545,
-		Credential: TlsFileCredential{},
+		Host: "geth",
+		Port: 8545,
 	}
 	gethSvc.ConfigureRpc(&gethRpc)
 

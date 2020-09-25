@@ -2,7 +2,6 @@ package xud
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/xud/xudrpc"
@@ -79,12 +78,7 @@ func (t *XudService) ConfigureRpc(options *service.RpcOptions) {
 
 func (t *XudService) getRpcClient() (pb.XudClient, error) {
 	if t.rpcClient == nil {
-		tlsFile, ok := t.rpcOptions.Credential.(service.TlsFileCredential)
-		if !ok {
-			return nil, errors.New("TlsFileCredential is required")
-		}
-
-		creds, err := credentials.NewClientTLSFromFile(tlsFile.File, "localhost")
+		creds, err := credentials.NewClientTLSFromFile(t.rpcOptions.TlsCert, "localhost")
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +100,6 @@ func (t *XudService) getRpcClient() (pb.XudClient, error) {
 }
 
 func (t *XudService) ConfigureRouter(r *gin.Engine) {
-	t.SingleContainerService.ConfigureRouter(r)
 	r.GET("/api/v1/xud/getinfo", func(c *gin.Context) {
 		resp, err := t.GetInfo()
 		if err != nil {
