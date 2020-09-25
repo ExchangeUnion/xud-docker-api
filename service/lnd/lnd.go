@@ -2,15 +2,15 @@ package lnd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"gopkg.in/ini.v1"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/pkg/stdcopy"
+	"gopkg.in/ini.v1"
 	"io"
+	"io/ioutil"
 	"log"
 	"strings"
 )
@@ -22,7 +22,7 @@ type LndService struct {
 }
 
 func (t *LndService) GetBackendNode() (string, error) {
-	values, err := t.GetConfigValues("bitcoin.node")
+	values, err := t.GetConfigValues(fmt.Sprintf("%s.node", t.chain))
 	if err != nil {
 		return "", err
 	}
@@ -40,7 +40,7 @@ func (t *LndService) ConfigureRpc(options *service.RpcOptions) {
 
 }
 
-func (t *LndService) loadConfFile() (string, error) {
+func (t *LndService) loadConfFileFallback() (string, error) {
 	cli := t.GetDockerClientFactory().GetSharedInstance()
 
 	ctx := context.Background()
@@ -49,7 +49,7 @@ func (t *LndService) loadConfFile() (string, error) {
 	filters.Add("reference", "alpine:latest")
 
 	list, err := cli.ImageList(ctx, types.ImageListOptions{
-		All: true,
+		All:     true,
 		Filters: filters,
 	})
 	if cap(list) > 0 {
@@ -70,9 +70,9 @@ func (t *LndService) loadConfFile() (string, error) {
 
 	log.Println("ContainerCreate")
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: "alpine",
-		Cmd:   []string{"cat", "lnd.conf"},
-		Tty:   false,
+		Image:      "alpine",
+		Cmd:        []string{"cat", "lnd.conf"},
+		Tty:        false,
 		WorkingDir: "/root/.lnd",
 	}, &container.HostConfig{
 		AutoRemove: true,
@@ -90,7 +90,7 @@ func (t *LndService) loadConfFile() (string, error) {
 		Stream: true,
 		Stdout: true,
 		Stderr: true,
-		Logs: true,
+		Logs:   true,
 	})
 	if err != nil {
 		return "", err
@@ -98,7 +98,7 @@ func (t *LndService) loadConfFile() (string, error) {
 
 	log.Println("ContainerStart")
 	err = cli.ContainerStart(ctx, containerId, types.ContainerStartOptions{})
-	if  err != nil {
+	if err != nil {
 		return "", err
 	}
 
@@ -120,39 +120,63 @@ func (t *LndService) loadConfFile() (string, error) {
 	return stdout.String(), nil
 }
 
-func (t *LndService) GetConfigValues(key string) ([]string, error) {
-	result := []string{}
-	c, err := t.GetContainer()
+func (t *LndService) loadConfFile() (string, error) {
+	confFile := fmt.Sprintf("/root/.%s/lnd.conf", t.GetName())
+	content, err := ioutil.ReadFile(confFile)
 	if err != nil {
-		return result, err
+		return "", err
 	}
-	for k, v := range c.Config.Volumes {
-		log.Printf("lndbtc volume %s: %v", k, v)
-	}
-	for _, bind := range c.HostConfig.Binds {
-		log.Printf("lndbtc bind %s", bind)
-	}
+	return string(content), nil
+}
+
+func (t *LndService) GetConfigValues(key string) ([]string, error) {
+	var result []string
+	//c, err := t.GetContainer()
+	//if err != nil {
+	//	return result, err
+	//}
+	//for k, v := range c.Config.Volumes {
+	//	log.Printf("lndbtc volume %s: %v", k, v)
+	//}
+	//for _, bind := range c.HostConfig.Binds {
+	//	log.Printf("lndbtc bind %s", bind)
+	//}
 
 	conf, err := t.loadConfFile()
 	log.Printf("Loaded lnd.conf\n%s", conf)
 
-	log.Printf("Parsing lnd.conf as an INI file")
-	config, err := ini.Load([]byte(conf))
+	config, err := ini.ShadowLoad([]byte(conf))
 	if err != nil {
 		return result, err
 	}
 
-	section, err:= config.GetSection("Bitcoin")
-	if err != nil {
-		return result, errors.New("failed to get section `Bitcoind`: " + err.Error())
+	parts := strings.Split(key, ".")
+
+	if cap(parts) == 2 {
+		section, err := config.GetSection(strings.Title(parts[0]))
+		if err != nil {
+			return result, err
+		}
+
+		iniKey, err := section.GetKey(key)
+		if err != nil {
+			return result, err
+		}
+		value := iniKey.Value()
+		result = append(result, value)
+	} else if cap(parts) == 1 {
+		section, err := config.GetSection(ini.DefaultSection)
+		if err != nil {
+			return result, err
+		}
+
+		iniKey, err := section.GetKey(key)
+		if err != nil {
+			return result, err
+		}
+		values := iniKey.ValueWithShadows()
+		result = append(result, values...)
 	}
 
-	iniKey, err := section.GetKey(key)
-	if err != nil {
-		return result, errors.New(fmt.Sprintf("failed to get key `%s`: %s", key, err.Error()))
-	}
-	value := iniKey.String()
-	log.Printf("Got %s=%s", key, value)
-
-	return []string{value}, nil
+	return result, nil
 }

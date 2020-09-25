@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/urfave/cli/v2"
 )
 
 type Restful404Handler struct{}
@@ -80,6 +80,17 @@ func main() {
 
 	logger.Info("Creating router")
 	r := gin.Default()
+
+	// Configuring CORS
+	// - No origin allowed by default
+	// - GET,POST, PUT, HEAD methods
+	// - Credentials share disabled
+	// - Preflight requests cached for 12 hours
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:3000"}
+
+	r.Use(cors.New(config))
+
 	//r.NotFoundHandler = Restful404Handler{}
 	//r.MethodNotAllowedHandler = Restful405Handler{}
 

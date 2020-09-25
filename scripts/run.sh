@@ -6,4 +6,6 @@ docker run -it --rm --name proxy \
 -p 8080:8080 \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v $HOME/.xud-docker/testnet/data/xud:/root/.xud \
+-v $HOME/.xud-docker/testnet/data/lndbtc:/root/.lndbtc \
+-v $HOME/.xud-docker/testnet/data/lndltc:/root/.lndltc \
 proxy
