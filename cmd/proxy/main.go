@@ -1,9 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
@@ -15,25 +14,25 @@ import (
 type Restful404Handler struct{}
 type Restful405Handler struct{}
 
-func (Restful404Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusNotFound)
-	err := json.NewEncoder(w).Encode(map[string]string{"message": "not found"})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func (Restful405Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusMethodNotAllowed)
-	err := json.NewEncoder(w).Encode(map[string]string{"message": "method not allowed"})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
+//func (Restful404Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+//	w.Header().Set("X-Content-Type-Options", "nosniff")
+//	w.WriteHeader(http.StatusNotFound)
+//	err := json.NewEncoder(w).Encode(map[string]string{"message": "not found"})
+//	if err != nil {
+//		http.Error(w, err.Error(), http.StatusInternalServerError)
+//	}
+//}
+//
+//func (Restful405Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+//	w.Header().Set("X-Content-Type-Options", "nosniff")
+//	w.WriteHeader(http.StatusMethodNotAllowed)
+//	err := json.NewEncoder(w).Encode(map[string]string{"message": "method not allowed"})
+//	if err != nil {
+//		http.Error(w, err.Error(), http.StatusInternalServerError)
+//	}
+//}
 
 func main() {
 	logger := logrus.New()
@@ -80,9 +79,9 @@ func main() {
 	defer manager.Close()
 
 	logger.Info("Creating router")
-	r := mux.NewRouter()
-	r.NotFoundHandler = Restful404Handler{}
-	r.MethodNotAllowedHandler = Restful405Handler{}
+	r := gin.Default()
+	//r.NotFoundHandler = Restful404Handler{}
+	//r.MethodNotAllowedHandler = Restful405Handler{}
 
 	logger.Info("Configuring router")
 	manager.ConfigureRouter(r)

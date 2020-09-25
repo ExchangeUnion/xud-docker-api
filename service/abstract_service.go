@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,7 +26,7 @@ func (t *AbstractService) GetStatus() (string, error) {
 	return "Unknown", nil
 }
 
-func (t *AbstractService) ConfigureRouter(r *mux.Router) {
+func (t *AbstractService) ConfigureRouter(r *gin.Engine) {
 }
 
 func (t *AbstractService) Close() {

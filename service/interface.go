@@ -1,13 +1,13 @@
 package service
 
 import (
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 type Service interface {
 	GetName() string
 	GetStatus() (string, error)
-	ConfigureRouter(r *mux.Router)
+	ConfigureRouter(r *gin.Engine)
 	Close()
 }
 

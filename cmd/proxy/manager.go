@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	. "github.com/ExchangeUnion/xud-docker-api-poc/service"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/arby"
@@ -14,7 +13,7 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/webui"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud"
 	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
@@ -199,38 +198,29 @@ func (t *Manager) GetService(name string) (Service, error) {
 	return nil, errors.New("service not found: " + name)
 }
 
-func (t *Manager) ConfigureRouter(r *mux.Router) {
-	r.HandleFunc("/api/v1/status", func(w http.ResponseWriter, r *http.Request) {
+func (t *Manager) ConfigureRouter(r *gin.Engine) {
+	r.GET("/api/v1/status", func(c *gin.Context) {
 		status, err := t.GetStatus()
 		if err != nil {
-			utils.JsonError(w, err.Error(), http.StatusInternalServerError)
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		err = json.NewEncoder(w).Encode(status)
-		if err != nil {
-			utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}).Methods("GET")
+		c.JSON(http.StatusOK, status)
+	})
 
-	r.HandleFunc("/api/v1/status/{service}", func(w http.ResponseWriter, r *http.Request) {
-		if service, ok := mux.Vars(r)["service"]; ok {
-			s, err := t.GetService(service)
-			if err != nil {
-				utils.JsonError(w, "service not found", http.StatusNotFound)
-				return
-			}
-			status, err := s.GetStatus()
-			if err != nil {
-				utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			err = json.NewEncoder(w).Encode(status)
-			if err != nil {
-				utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+	r.GET("/api/v1/status/:service", func(c *gin.Context) {
+		service := c.Param("service")
+		s, err := t.GetService(service)
+		if err != nil {
+			utils.JsonError(c, "service not found", http.StatusNotFound)
+			return
 		}
+		status, err := s.GetStatus()
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.JSON(http.StatusOK, status)
 	})
 
 	for _, svc := range t.services {

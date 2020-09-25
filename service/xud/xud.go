@@ -7,8 +7,8 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/xud/xudrpc"
 	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
+	"github.com/gin-gonic/gin"
 	"github.com/golang/protobuf/jsonpb"
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"log"
@@ -47,60 +47,30 @@ func (t *XudService) GetInfo() (*pb.GetInfoResponse, error) {
 	return client.GetInfo(context.Background(), &req)
 }
 
-func (t *XudService) GetBalance(w http.ResponseWriter, r *http.Request) {
+func (t *XudService) GetBalance(currency string) (*pb.GetBalanceResponse, error) {
 	client, err := t.getRpcClient()
 	if err != nil {
-		utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	req := pb.GetBalanceRequest{}
-	if currency, ok := mux.Vars(r)["currency"]; ok {
+	if currency != "" {
 		req.Currency = currency
 	}
-	resp, err := client.GetBalance(context.Background(), &req)
-	if err != nil {
-		utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	m := jsonpb.Marshaler{EmitDefaults: true}
-	err = m.Marshal(w, resp)
-	if err != nil {
-		utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	return client.GetBalance(context.Background(), &req)
 }
 
-func (t *XudService) GetTradeHistory(w http.ResponseWriter, r *http.Request) {
+func (t *XudService) GetTradeHistory(limit uint32) (*pb.TradeHistoryResponse, error) {
 	client, err := t.getRpcClient()
 	if err != nil {
-		utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	req := pb.TradeHistoryRequest{}
-	if limit, ok := mux.Vars(r)["limit"]; ok {
-		i, err := strconv.ParseUint(limit, 10, 32)
-		if err != nil {
-			msg := fmt.Sprintf("invalid limit: %s", err.Error())
-			utils.JsonError(w, msg, http.StatusBadRequest)
-			return
-		}
-		req.Limit = uint32(i)
+	if limit != 0 {
+		req.Limit = limit
 	}
-	resp, err := client.TradeHistory(context.Background(), &req)
-	if err != nil {
-		utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	m := jsonpb.Marshaler{EmitDefaults: true}
-	err = m.Marshal(w, resp)
-	if err != nil {
-		utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	return client.TradeHistory(context.Background(), &req)
 }
 
 func (t *XudService) ConfigureRpc(options *service.RpcOptions) {
@@ -135,26 +105,76 @@ func (t *XudService) getRpcClient() (pb.XudClient, error) {
 	return t.rpcClient, nil
 }
 
-func (t *XudService) ConfigureRouter(r *mux.Router) {
+func (t *XudService) ConfigureRouter(r *gin.Engine) {
 	t.SingleContainerService.ConfigureRouter(r)
-	r.HandleFunc("/api/v1/xud/getinfo", func(w http.ResponseWriter, r *http.Request) {
+	r.GET("/api/v1/xud/getinfo", func(c *gin.Context) {
 		resp, err := t.GetInfo()
 		if err != nil {
-			utils.JsonError(w, err.Error(), http.StatusInternalServerError)
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		m := jsonpb.Marshaler{EmitDefaults: true}
-		err = m.Marshal(w, resp)
+		err = m.Marshal(c.Writer, resp)
 		if err != nil {
-			utils.JsonError(w, err.Error(), http.StatusInternalServerError)
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	}).Methods("GET")
-	r.HandleFunc("/api/v1/xud/getbalance", t.GetBalance).Methods("GET")
-	r.HandleFunc("/api/v1/xud/getbalance/{currency}", t.GetBalance).Methods("GET")
-	r.HandleFunc("/api/v1/xud/tradehistory", t.GetTradeHistory).Queries("limit", "{limit}").Methods("GET")
-	r.HandleFunc("/api/v1/xud/tradehistory", t.GetTradeHistory).Methods("GET")
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
+	r.GET("/api/v1/xud/getbalance", func(c *gin.Context) {
+		resp, err := t.GetBalance("")
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		m := jsonpb.Marshaler{EmitDefaults: true}
+		err = m.Marshal(c.Writer, resp)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
+	r.GET("/api/v1/xud/getbalance/:currency", func(c *gin.Context) {
+		resp, err := t.GetBalance(c.Param("currency"))
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		m := jsonpb.Marshaler{EmitDefaults: true}
+		err = m.Marshal(c.Writer, resp)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
+	r.GET("/api/v1/xud/tradehistory", func(c *gin.Context) {
+		limitStr := c.DefaultQuery("limit", "0")
+		limit, err := strconv.ParseUint(limitStr, 10, 32)
+		if err != nil {
+			msg := fmt.Sprintf("invalid limit: %s", err.Error())
+			utils.JsonError(c, msg, http.StatusBadRequest)
+			return
+		}
+		if limit < 0 {
+			msg := fmt.Sprintf("invalid limit: %d", limit)
+			utils.JsonError(c, msg, http.StatusBadRequest)
+			return
+		}
+		resp, err := t.GetTradeHistory(uint32(limit))
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		m := jsonpb.Marshaler{EmitDefaults: true}
+		err = m.Marshal(c.Writer, resp)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
 }
 
 func (t *XudService) Close() {

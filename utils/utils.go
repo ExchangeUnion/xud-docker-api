@@ -1,16 +1,13 @@
 package utils
 
 import (
-	"encoding/json"
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
-func JsonError(w http.ResponseWriter, message string, code int) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(code)
-	err := json.NewEncoder(w).Encode(map[string]string{"message": message})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+func JsonError(c *gin.Context, message string, code int) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.JSON(code, gin.H{
+		"message": message,
+	})
 }
