@@ -77,9 +77,11 @@ func NewManager(network string) (*Manager, error) {
 	xudSvc.SetServiceManager(&manager)
 	xudSvc.SetDockerClientFactory(dockerClientFactory)
 	xudRpc := RpcOptions{
-		Host:       "xud",
-		Port:       18886,
-		Credential: TlsFileCredential{},
+		Host: "xud",
+		Port: 18886,
+		Credential: TlsFileCredential{
+			File: "/root/.xud/tls.cert",
+		},
 	}
 	xudSvc.ConfigureRpc(&xudRpc)
 

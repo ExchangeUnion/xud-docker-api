@@ -7,6 +7,7 @@ type RpcOptions struct {
 }
 
 type TlsFileCredential struct {
+	File string
 }
 
 type UsernamePasswordCredential struct {
@@ -15,6 +16,7 @@ type UsernamePasswordCredential struct {
 }
 
 type MacaroonFileCredential struct {
+	File string
 }
 
 type RpcProvider interface {
