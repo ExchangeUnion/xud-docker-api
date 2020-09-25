@@ -19,7 +19,7 @@ import (
 )
 
 type Manager struct {
-	network string
+	network  string
 	services []Service
 }
 
@@ -28,7 +28,7 @@ func NewManager(network string) (*Manager, error) {
 	lndbtcSvc := lnd.New("lndbtc", "testnet_lndbtc_1", "bitcoin")
 	lndltcSvc := lnd.New("lndltc", "testnet_lndltc_1", "litecoin")
 	connextSvc := connext.New("connext", "testnet_connext_1")
-	bitcoindSvc :=	bitcoind.New("bitcoind", "testnet_bitcoind_1", "lndbtc")
+	bitcoindSvc := bitcoind.New("bitcoind", "testnet_bitcoind_1", "lndbtc")
 	litecoindSvc := litecoind.New("litecoind", "testnet_litecoind_1", "lndltc")
 	gethSvc := geth.New("geth", "testnet_geth_1")
 	arbySvc := arby.New("arby", "testnet_arby_1")
@@ -59,8 +59,8 @@ func NewManager(network string) (*Manager, error) {
 	xudSvc.SetServiceManager(&manager)
 	xudSvc.SetDockerClientFactory(dockerClientFactory)
 	xudRpc := RpcOptions{
-		Host: "xud",
-		Port: 18886,
+		Host:       "xud",
+		Port:       18886,
 		Credential: TlsFileCredential{},
 	}
 	xudSvc.ConfigureRpc(&xudRpc)
@@ -68,8 +68,8 @@ func NewManager(network string) (*Manager, error) {
 	lndbtcSvc.SetServiceManager(&manager)
 	lndbtcSvc.SetDockerClientFactory(dockerClientFactory)
 	lndbtcRpc := RpcOptions{
-		Host: "lndbtc",
-		Port: 10009,
+		Host:       "lndbtc",
+		Port:       10009,
 		Credential: MacaroonFileCredential{},
 	}
 	lndbtcSvc.ConfigureRpc(&lndbtcRpc)
@@ -77,8 +77,8 @@ func NewManager(network string) (*Manager, error) {
 	lndltcSvc.SetServiceManager(&manager)
 	lndltcSvc.SetDockerClientFactory(dockerClientFactory)
 	lndltcRpc := RpcOptions{
-		Host: "lndltc",
-		Port: 10009,
+		Host:       "lndltc",
+		Port:       10009,
 		Credential: MacaroonFileCredential{},
 	}
 	lndltcSvc.ConfigureRpc(&lndltcRpc)
@@ -113,8 +113,8 @@ func NewManager(network string) (*Manager, error) {
 	gethSvc.SetServiceManager(&manager)
 	gethSvc.SetDockerClientFactory(dockerClientFactory)
 	gethRpc := RpcOptions{
-		Host: "geth",
-		Port: 9375,
+		Host:       "geth",
+		Port:       9375,
 		Credential: TlsFileCredential{},
 	}
 	gethSvc.ConfigureRpc(&gethRpc)
@@ -181,7 +181,7 @@ func (t *Manager) GetService(name string) (Service, error) {
 
 func (t *Manager) ConfigureRouter(r *mux.Router) {
 	r.HandleFunc("/api/v1/status", func(w http.ResponseWriter, r *http.Request) {
-		status, err:= t.GetStatus()
+		status, err := t.GetStatus()
 		if err != nil {
 			utils.JsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -192,6 +192,26 @@ func (t *Manager) ConfigureRouter(r *mux.Router) {
 			return
 		}
 	}).Methods("GET")
+
+	r.HandleFunc("/api/v1/status/{service}", func(w http.ResponseWriter, r *http.Request) {
+		if service, ok := mux.Vars(r)["service"]; ok {
+			s, err := t.GetService(service)
+			if err != nil {
+				utils.JsonError(w, "service not found", http.StatusNotFound)
+				return
+			}
+			status, err := s.GetStatus()
+			if err != nil {
+				utils.JsonError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			err = json.NewEncoder(w).Encode(status)
+			if err != nil {
+				utils.JsonError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+	})
 
 	for _, svc := range t.services {
 		svc.ConfigureRouter(r)
