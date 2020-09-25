@@ -11,18 +11,18 @@ import (
 
 type BitcoindService struct {
 	*service.SingleContainerService
-	rpcOptions *service.RpcOptions
-	rpcClient jsonrpc.RPCClient
+	rpcOptions    *service.RpcOptions
+	rpcClient     jsonrpc.RPCClient
 	l2ServiceName string
 }
 
-type Mode int
+type Mode string
 
 const (
-	Native Mode = iota
-	External
-	Light
-	Unknown
+	Native   Mode = "native"
+	External Mode = "external"
+	Light    Mode = "light"
+	Unknown  Mode = "unknown"
 )
 
 func New(
@@ -32,8 +32,12 @@ func New(
 ) *BitcoindService {
 	return &BitcoindService{
 		SingleContainerService: service.NewSingleContainerService(name, containerName),
-		l2ServiceName: l2ServiceName,
+		l2ServiceName:          l2ServiceName,
 	}
+}
+
+func (t *BitcoindService) ConfigureRpc(options *service.RpcOptions) {
+	t.rpcOptions = options
 }
 
 func (t *BitcoindService) getRpcClient() jsonrpc.RPCClient {
@@ -75,7 +79,7 @@ func (t *BitcoindService) getMode() (Mode, error) {
 	if err != nil {
 		return Unknown, err
 	}
-	backend, err:= lndSvc.GetBackendNode()
+	backend, err := lndSvc.GetBackendNode()
 	if err != nil {
 		return Unknown, err
 	}
@@ -104,7 +108,7 @@ func (t *BitcoindService) GetStatus() (string, error) {
 	}
 	switch mode {
 	case Native:
-		containerStatus, err:= t.GetContainerStatus()
+		containerStatus, err := t.GetContainerStatus()
 		if err != nil {
 			// TODO container missing
 			return "", err
@@ -145,8 +149,4 @@ func (t *BitcoindService) GetStatus() (string, error) {
 	default:
 		return "Error: Unknown mode", nil
 	}
-}
-
-func (t *BitcoindService) ConfigureRpc(options *service.RpcOptions) {
-	t.rpcOptions = options
 }

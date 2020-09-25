@@ -114,7 +114,7 @@ func NewManager(network string) (*Manager, error) {
 	gethSvc.SetDockerClientFactory(dockerClientFactory)
 	gethRpc := RpcOptions{
 		Host:       "geth",
-		Port:       9375,
+		Port:       8545,
 		Credential: TlsFileCredential{},
 	}
 	gethSvc.ConfigureRpc(&gethRpc)
