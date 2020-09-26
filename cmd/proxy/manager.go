@@ -42,8 +42,17 @@ func NewManager(network string) (*Manager, error) {
 	}
 
 	xudSvc := xud.New("xud", "testnet_xud_1")
-	lndbtcSvc := lnd.New("lndbtc", "testnet_lndbtc_1", "bitcoin")
-	lndltcSvc := lnd.New("lndltc", "testnet_lndltc_1", "litecoin")
+
+	lndbtcSvc, err := lnd.New("lndbtc", "testnet_lndbtc_1", "bitcoin")
+	if err != nil {
+		return nil, err
+	}
+
+	lndltcSvc, err := lnd.New("lndltc", "testnet_lndltc_1", "litecoin")
+	if err != nil {
+		return nil, err
+	}
+
 	connextSvc := connext.New("connext", "testnet_connext_1")
 	bitcoindSvc := bitcoind.New("bitcoind", "testnet_bitcoind_1", "lndbtc")
 	litecoindSvc := litecoind.New("litecoind", "testnet_litecoind_1", "lndltc")

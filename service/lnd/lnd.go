@@ -20,6 +20,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -28,6 +30,7 @@ type LndService struct {
 	rpcOptions *service.RpcOptions
 	rpcClient  pb.LightningClient
 	chain      string
+	p          *regexp.Regexp
 }
 
 func (t *LndService) GetBackendNode() (string, error) {
@@ -38,11 +41,17 @@ func (t *LndService) GetBackendNode() (string, error) {
 	return values[0], err
 }
 
-func New(name string, containerName string, chain string) *LndService {
+func New(name string, containerName string, chain string) (*LndService, error) {
+	p, err := regexp.Compile("^.*NTFN: New block: height=(\\d+), sha=(.+)$")
+	if err != nil {
+		return nil, err
+	}
+
 	return &LndService{
 		SingleContainerService: service.NewSingleContainerService(name, containerName),
 		chain:                  chain,
-	}
+		p:                      p,
+	}, nil
 }
 
 func (t *LndService) ConfigureRpc(options *service.RpcOptions) {
@@ -249,7 +258,27 @@ func (t *LndService) ConfigureRouter(r *gin.Engine) {
 }
 
 func (t *LndService) getCurrentHeight() (uint32, error) {
-	// TODO get lnd current height from log
+	logs, err := t.GetLogs("10m", "all")
+	if err != nil {
+		return 0, nil
+	}
+
+	var height string
+
+	for line := range logs {
+		if t.p.MatchString(line) {
+			height = t.p.ReplaceAllString(line, "$1")
+		}
+	}
+
+	if height != "" {
+		i64, err := strconv.ParseInt(height, 10, 32)
+		if err != nil {
+			return 0, nil
+		}
+		return uint32(i64), nil
+	}
+
 	return 0, nil
 }
 
@@ -271,7 +300,9 @@ func (t *LndService) GetStatus() (string, error) {
 		total := info.BlockHeight
 		current, err := t.getCurrentHeight()
 
-		if err == nil {
+		t.GetLogger().Infof("Current height is %d", current)
+
+		if err == nil && current > 0 {
 			if total <= current {
 				return "Ready", nil
 			} else {
