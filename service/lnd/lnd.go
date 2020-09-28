@@ -191,7 +191,6 @@ func (t *LndService) GetConfigValues(key string) ([]string, error) {
 	//}
 
 	conf, err := t.loadConfFile()
-	log.Printf("Loaded lnd.conf\n%s", conf)
 
 	config, err := ini.ShadowLoad([]byte(conf))
 	if err != nil {

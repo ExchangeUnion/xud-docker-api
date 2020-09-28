@@ -210,7 +210,30 @@ func (t *Manager) GetService(name string) (Service, error) {
 	return nil, errors.New("service not found: " + name)
 }
 
+type ServiceEntry struct {
+	Id string `json:"id"`
+	Name string `json:"name"`
+}
+
 func (t *Manager) ConfigureRouter(r *gin.Engine) {
+
+	r.GET("/api/v1/services", func(c *gin.Context) {
+		var result []ServiceEntry
+
+		result = append(result, ServiceEntry{"xud", "XUD"})
+		result = append(result, ServiceEntry{"lndbtc", "LND (Bitcoin)"})
+		result = append(result, ServiceEntry{"lndltc", "LND (Litecoin)"})
+		result = append(result, ServiceEntry{"connext", "Connext"})
+		result = append(result, ServiceEntry{"bitcoind", "Bitcoind"})
+		result = append(result, ServiceEntry{"litecoind", "Litecoind"})
+		result = append(result, ServiceEntry{"geth", "Geth"})
+		result = append(result, ServiceEntry{"arby", "Arby"})
+		result = append(result, ServiceEntry{"boltz", "Boltz"})
+		result = append(result, ServiceEntry{"webui", "Web UI"})
+
+		c.JSON(http.StatusOK, result)
+	})
+
 	r.GET("/api/v1/status", func(c *gin.Context) {
 		status, err := t.GetStatus()
 		if err != nil {
@@ -224,7 +247,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 		service := c.Param("service")
 		s, err := t.GetService(service)
 		if err != nil {
-			utils.JsonError(c, "service not found", http.StatusNotFound)
+			utils.JsonError(c, err.Error(), http.StatusNotFound)
 			return
 		}
 		status, err := s.GetStatus()
@@ -233,6 +256,27 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 			return
 		}
 		c.JSON(http.StatusOK, status)
+	})
+
+	r.GET("/api/v1/logs/:service", func(c *gin.Context) {
+		service := c.Param("service")
+		s, err := t.GetService(service)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusNotFound)
+			return
+		}
+		logs, err := s.GetLogs("1h", "all")
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "text/plain")
+		for line := range logs {
+			_, err = c.Writer.WriteString(line + "\n")
+			if err != nil {
+				utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			}
+		}
 	})
 
 	for _, svc := range t.services {

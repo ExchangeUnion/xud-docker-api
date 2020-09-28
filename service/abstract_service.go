@@ -32,6 +32,14 @@ func (t *AbstractService) ConfigureRouter(r *gin.Engine) {
 func (t *AbstractService) Close() {
 }
 
+func (t *AbstractService) GetLogs(since string, tail string) (<-chan string, error) {
+	ch := make(chan string)
+	go func() {
+		close(ch)
+	}()
+	return ch, nil
+}
+
 func (t *AbstractService) SetServiceManager(serviceManager ServiceManager) {
 	t.serviceManager = serviceManager
 }

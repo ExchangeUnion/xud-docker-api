@@ -31,7 +31,7 @@ func New(
 //  "block_height": 1835961
 // }
 func (t *BoltzService) GetInfo(node Node) (map[string]interface{}, error) {
-	output, err := t.Exec([]string{"wrapper", string(node), "getinfo"})
+	output, err := t.Exec1([]string{"wrapper", string(node), "getinfo"})
 	if err != nil {
 		return nil, err
 	}

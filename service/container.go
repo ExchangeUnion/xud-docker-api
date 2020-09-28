@@ -70,6 +70,45 @@ func (t *Container) Exec(command []string) (string, error) {
 	return output.String(), nil
 }
 
+func (t *Container) ExecInteractive(command []string) (string, io.Reader, io.Writer, error) {
+
+	ctx := context.Background()
+	createResp, err := t.client.ContainerExecCreate(ctx, t.c.ID, types.ExecConfig{
+		Cmd:          command,
+		Tty:          true,
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+	})
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	execId := createResp.ID
+
+	t.logger.Infof("Created exec: %v", execId)
+
+	// ContainerExecAttach = ContainerExecStart
+	attachResp, err := t.client.ContainerExecAttach(ctx, execId, types.ExecConfig{})
+	if err != nil {
+		return execId, nil, nil, err
+	}
+
+	t.logger.Infof("Attached %v", attachResp)
+
+	r, w := io.Pipe()
+
+	go func() {
+		_, err = stdcopy.StdCopy(w, w, attachResp.Reader)
+		if err != nil {
+			t.logger.Errorf("StdCopy failed: %v", err)
+		}
+		attachResp.Close()
+	}()
+
+	return execId, r, attachResp.Conn, nil
+}
+
 func (t *Container) GetLogs(since string, tail string) (<-chan string, error) {
 	reader, err := t.client.ContainerLogs(context.Background(), t.c.ID, types.ContainerLogsOptions{
 		ShowStdout: true,

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -84,10 +85,18 @@ func (t *SingleContainerService) GetEnvironmentVariable(key string) (string, err
 }
 
 // ContainerExec is a shortcut function
-func (t *SingleContainerService) Exec(command []string) (string, error) {
+func (t *SingleContainerService) Exec1(command []string) (string, error) {
 	c, err := t.GetContainer()
 	if err != nil {
 		return "", err
 	}
 	return c.Exec(command)
+}
+
+func (t *SingleContainerService) ExecInteractive(command []string) (string, io.Reader, io.Writer, error) {
+	c, err := t.GetContainer()
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return c.ExecInteractive(command)
 }

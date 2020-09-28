@@ -9,6 +9,7 @@ type Service interface {
 	GetStatus() (string, error)
 	ConfigureRouter(r *gin.Engine)
 	Close()
+	GetLogs(since string, tail string) (<-chan string, error)
 }
 
 type ServiceManager interface {
