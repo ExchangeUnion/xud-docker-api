@@ -37,7 +37,7 @@ func (t *ConnextService) GetStatus() (string, error) {
 }
 
 func (t *ConnextService) GetEthProvider() (string, error) {
-	value, err := t.GetEnvironmentVariable("CONNEXT_ETH_PROVIDER_URL")
+	value, err := t.Getenv("CONNEXT_ETH_PROVIDER_URL")
 	if err != nil {
 		return "", err
 	}

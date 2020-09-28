@@ -76,12 +76,12 @@ func (t *SingleContainerService) GetLogs(since string, tail string) (<-chan stri
 }
 
 // GetContainerEnvironmentVariable is a shortcut function
-func (t *SingleContainerService) GetEnvironmentVariable(key string) (string, error) {
+func (t *SingleContainerService) Getenv(key string) (string, error) {
 	c, err := t.GetContainer()
 	if err != nil {
 		return "", err
 	}
-	return c.GetEnvironmentVariable(key), nil
+	return c.Getenv(key), nil
 }
 
 // ContainerExec is a shortcut function

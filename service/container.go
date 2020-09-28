@@ -163,7 +163,7 @@ func (t *Container) GetLogs(since string, tail string) (<-chan string, error) {
 	return ch, nil
 }
 
-func (t *Container) GetEnvironmentVariable(key string) string {
+func (t *Container) Getenv(key string) string {
 	prefix := key + "="
 	for _, env := range t.c.Config.Env {
 		if strings.HasPrefix(env, prefix) {

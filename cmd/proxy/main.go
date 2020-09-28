@@ -79,7 +79,10 @@ func main() {
 	}
 
 	logger.Info("Creating service manager")
-	manager, err := NewManager("testnet")
+
+	network := os.Getenv("NETWORK")
+
+	manager, err := NewManager(network)
 	if err != nil {
 		log.Fatal(err)
 	}

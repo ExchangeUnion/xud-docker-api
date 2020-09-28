@@ -7,18 +7,12 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/lnd/lnrpc"
 	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gopkg.in/ini.v1"
-	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -86,86 +80,6 @@ func (t *LndService) getRpcClient() (pb.LightningClient, error) {
 		t.rpcClient = pb.NewLightningClient(conn)
 	}
 	return t.rpcClient, nil
-}
-
-func (t *LndService) loadConfFileFallback() (string, error) {
-	cli := t.GetDockerClientFactory().GetSharedInstance()
-
-	ctx := context.Background()
-
-	filters := filters.NewArgs()
-	filters.Add("reference", "alpine:latest")
-
-	list, err := cli.ImageList(ctx, types.ImageListOptions{
-		All:     true,
-		Filters: filters,
-	})
-	if cap(list) > 0 {
-		log.Println("Found alpine image")
-	} else {
-		log.Println("ImagePull")
-		out, err := cli.ImagePull(ctx, "docker.io/library/alpine", types.ImagePullOptions{})
-		if err != nil {
-			return "", err
-		}
-		buf := new(strings.Builder)
-		_, err = io.Copy(buf, out)
-		if err != nil {
-			return "", err
-		}
-		log.Printf("ImagePull result\n%s", buf.String())
-	}
-
-	log.Println("ContainerCreate")
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:      "alpine",
-		Cmd:        []string{"cat", "lnd.conf"},
-		Tty:        false,
-		WorkingDir: "/root/.lnd",
-	}, &container.HostConfig{
-		AutoRemove: true,
-		Binds: []string{
-			"/home/yy/.xud-docker/testnet/data/lndbtc:/root/.lnd:ro",
-		},
-	}, nil, "")
-	if err != nil {
-		return "", err
-	}
-
-	containerId := resp.ID
-
-	rsp, err := cli.ContainerAttach(ctx, containerId, types.ContainerAttachOptions{
-		Stream: true,
-		Stdout: true,
-		Stderr: true,
-		Logs:   true,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	log.Println("ContainerStart")
-	err = cli.ContainerStart(ctx, containerId, types.ContainerStartOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	log.Println("StdCopy")
-	stdout := new(strings.Builder)
-	stderr := new(strings.Builder)
-	_, err = stdcopy.StdCopy(stdout, stderr, rsp.Reader)
-	if err != nil {
-		return "", err
-	}
-
-	log.Println("ContainerWait")
-	exitCode, err := cli.ContainerWait(ctx, containerId)
-	if err != nil {
-		return "", err
-	}
-	log.Println(exitCode)
-
-	return stdout.String(), nil
 }
 
 func (t *LndService) loadConfFile() (string, error) {

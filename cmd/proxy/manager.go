@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	. "github.com/ExchangeUnion/xud-docker-api-poc/service"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/arby"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/bitcoind"
@@ -22,44 +23,44 @@ type Manager struct {
 	services []Service
 }
 
-type LightProviders struct {
-	Testnet []string
-	Mainnet []string
+func containerName(network string, service string) string {
+	return fmt.Sprintf("%s_%s_1", network, service)
 }
 
 func NewManager(network string) (*Manager, error) {
-	lightProviders := LightProviders{
-		Testnet: []string{
+	lightProviders := map[string][]string {
+		"testnet": {
 			"http://eth.kilrau.com:52041",
 			"http://michael1011.at:8546",
 			"http://gethxudxv2k4pv5t5a5lswq2hcv3icmj3uwg7m2n2vuykiyv77legiad.onion:8546",
 		},
-		Mainnet: []string{
+		"mainnet": {
 			"http://eth.kilrau.com:41007",
 			"http://michael1011.at:8545",
 			"http://gethxudxv2k4pv5t5a5lswq2hcv3icmj3uwg7m2n2vuykiyv77legiad.onion:8545",
 		},
 	}
 
-	xudSvc := xud.New("xud", "testnet_xud_1")
+	xudSvc := xud.New("xud", containerName(network, "xud"))
 
-	lndbtcSvc, err := lnd.New("lndbtc", "testnet_lndbtc_1", "bitcoin")
+	lndbtcSvc, err := lnd.New("lndbtc", containerName(network, "lndbtc"), "bitcoin")
 	if err != nil {
 		return nil, err
 	}
 
-	lndltcSvc, err := lnd.New("lndltc", "testnet_lndltc_1", "litecoin")
+	lndltcSvc, err := lnd.New("lndltc", containerName(network, "lndltc"), "litecoin")
 	if err != nil {
 		return nil, err
 	}
 
-	connextSvc := connext.New("connext", "testnet_connext_1")
-	bitcoindSvc := bitcoind.New("bitcoind", "testnet_bitcoind_1", "lndbtc")
-	litecoindSvc := litecoind.New("litecoind", "testnet_litecoind_1", "lndltc")
-	gethSvc := geth.New("geth", "testnet_geth_1", "connext", lightProviders.Testnet)
-	arbySvc := arby.New("arby", "testnet_arby_1")
-	boltzSvc := boltz.New("boltz", "testnet_boltz_1")
-	webuiSvc := webui.New("webui", "testnet_webui_1")
+	connextSvc := connext.New("connext", containerName(network, "connext"))
+	bitcoindSvc := bitcoind.New("bitcoind", containerName(network, "bitcoind"), "lndbtc")
+	litecoindSvc := litecoind.New("litecoind", containerName(network, "litecoind"), "lndltc")
+
+	gethSvc := geth.New("geth", containerName(network, "geth"), "connext", lightProviders[network])
+	arbySvc := arby.New("arby", containerName(network, "arby"))
+	boltzSvc := boltz.New("boltz", containerName(network, "boltz"))
+	webuiSvc := webui.New("webui", containerName(network, "webui"))
 
 	manager := Manager{
 		network: network,
@@ -98,7 +99,7 @@ func NewManager(network string) (*Manager, error) {
 		Port:    10009,
 		TlsCert: "/root/.lndbtc/tls.cert",
 		Credential: MacaroonCredential{
-			Readonly: "/root/.lndbtc/data/chain/bitcoin/testnet/readonly.macaroon",
+			Readonly: fmt.Sprintf("/root/.lndbtc/data/chain/bitcoin/%s/readonly.macaroon", network),
 		},
 	}
 	lndbtcSvc.ConfigureRpc(&lndbtcRpc)
@@ -110,7 +111,7 @@ func NewManager(network string) (*Manager, error) {
 		Port:    10009,
 		TlsCert: "/root/.lndltc/tls.cert",
 		Credential: MacaroonCredential{
-			Readonly: "/root/.lndltc/data/chain/litecoin/testnet/readonly.macaroon",
+			Readonly: fmt.Sprintf("/root/.lndltc/data/chain/litecoin/%s/readonly.macaroon", network),
 		},
 	}
 	lndltcSvc.ConfigureRpc(&lndltcRpc)
@@ -165,29 +166,6 @@ func NewManager(network string) (*Manager, error) {
 func (t *Manager) getServices() []Service {
 	return t.services
 }
-
-//func (t *Manager) GetStatus(w http.ResponseWriter, r *http.Request) {
-//	// Container running?
-//	// Processes running?
-//	// Each process is health?
-//
-//	if service, ok := mux.Vars(r)["service"]; ok {
-//		containerName := fmt.Sprintf("testnet_%s_1", service)
-//		ctx := context.Background()
-//		cli, err := client.NewEnvClient()
-//		if err != nil {
-//			log.Fatal(err)
-//		}
-//		cj, err := cli.ContainerInspect(ctx, containerName)
-//		if err != nil {
-//			log.Fatal(err)
-//		}
-//		err = json.NewEncoder(w).Encode(cj.State)
-//		if err != nil {
-//			utils.JsonError(w, err.Error(), http.StatusInternalServerError)
-//		}
-//	}
-//}
 
 func (t *Manager) GetStatus() (map[string]string, error) {
 	result := map[string]string{}
