@@ -28,7 +28,7 @@ func containerName(network string, service string) string {
 }
 
 func NewManager(network string) (*Manager, error) {
-	lightProviders := map[string][]string {
+	lightProviders := map[string][]string{
 		"testnet": {
 			"http://eth.kilrau.com:52041",
 			"http://michael1011.at:8546",
@@ -85,9 +85,17 @@ func NewManager(network string) (*Manager, error) {
 
 	xudSvc.SetServiceManager(&manager)
 	xudSvc.SetDockerClientFactory(dockerClientFactory)
+	var xudRpcPort int16
+	if network == "simnet" {
+		xudRpcPort = 28886
+	} else if network == "testnet" {
+		xudRpcPort = 18886
+	} else if network == "mainnet" {
+		xudRpcPort = 8886
+	}
 	xudRpc := RpcOptions{
 		Host:    "xud",
-		Port:    18886,
+		Port:    xudRpcPort,
 		TlsCert: "/root/.xud/tls.cert",
 	}
 	xudSvc.ConfigureRpc(&xudRpc)
@@ -189,7 +197,7 @@ func (t *Manager) GetService(name string) (Service, error) {
 }
 
 type ServiceEntry struct {
-	Id string `json:"id"`
+	Id   string `json:"id"`
 	Name string `json:"name"`
 }
 
