@@ -19,29 +19,6 @@ import (
 	"strings"
 )
 
-type Restful404Handler struct{}
-type Restful405Handler struct{}
-
-//func (Restful404Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-//	w.Header().Set("X-Content-Type-Options", "nosniff")
-//	w.WriteHeader(http.StatusNotFound)
-//	err := json.NewEncoder(w).Encode(map[string]string{"message": "not found"})
-//	if err != nil {
-//		http.Error(w, err.Error(), http.StatusInternalServerError)
-//	}
-//}
-//
-//func (Restful405Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-//	w.Header().Set("X-Content-Type-Options", "nosniff")
-//	w.WriteHeader(http.StatusMethodNotAllowed)
-//	err := json.NewEncoder(w).Encode(map[string]string{"message": "method not allowed"})
-//	if err != nil {
-//		http.Error(w, err.Error(), http.StatusInternalServerError)
-//	}
-//}
-
 func main() {
 	logger := logrus.New()
 
@@ -156,8 +133,12 @@ func main() {
 
 	r.Use(cors.New(config))
 
-	//r.NotFoundHandler = Restful404Handler{}
-	//r.MethodNotAllowedHandler = Restful405Handler{}
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(404, gin.H{"message": "not found"})
+	})
+	r.NoMethod(func(c *gin.Context) {
+		c.JSON(405, gin.H{"message": "method not allowed"})
+	})
 
 	logger.Info("Configuring router")
 	manager.ConfigureRouter(r)
