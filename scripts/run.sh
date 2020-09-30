@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 NETWORK=${1:-testnet}
 
 docker build . -t proxy

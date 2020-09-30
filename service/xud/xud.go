@@ -72,6 +72,19 @@ func (t *XudService) GetTradeHistory(limit uint32) (*pb.TradeHistoryResponse, er
 	return client.TradeHistory(context.Background(), &req)
 }
 
+func (t *XudService) GetTradingLimits(currency string) (*pb.TradingLimitsResponse, error) {
+	client, err := t.getRpcClient()
+	if err != nil {
+		return nil, err
+	}
+
+	req := pb.TradingLimitsRequest{}
+	if currency != "" {
+		req.Currency = currency
+	}
+	return client.TradingLimits(context.Background(), &req)
+}
+
 func (t *XudService) ConfigureRpc(options *service.RpcOptions) {
 	t.rpcOptions = options
 }
@@ -156,6 +169,34 @@ func (t *XudService) ConfigureRouter(r *gin.Engine) {
 			return
 		}
 		resp, err := t.GetTradeHistory(uint32(limit))
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		m := jsonpb.Marshaler{EmitDefaults: true}
+		err = m.Marshal(c.Writer, resp)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
+	r.GET("/api/v1/xud/tradinglimits", func(c *gin.Context) {
+		resp, err := t.GetTradingLimits("")
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		m := jsonpb.Marshaler{EmitDefaults: true}
+		err = m.Marshal(c.Writer, resp)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Header("Content-Type", "application/json; charset=utf-8")
+	})
+	r.GET("/api/v1/xud/tradinglimits/:currency", func(c *gin.Context) {
+		resp, err := t.GetTradingLimits(c.Param("currency"))
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
