@@ -54,17 +54,28 @@ func NewManager(network string) (*Manager, error) {
 	}
 
 	connextSvc := connext.New("connext", containerName(network, "connext"))
+
 	bitcoindSvc := bitcoind.New("bitcoind", containerName(network, "bitcoind"), "lndbtc")
 	litecoindSvc := litecoind.New("litecoind", containerName(network, "litecoind"), "lndltc")
-
 	gethSvc := geth.New("geth", containerName(network, "geth"), "connext", lightProviders[network])
+
 	arbySvc := arby.New("arby", containerName(network, "arby"))
 	boltzSvc := boltz.New("boltz", containerName(network, "boltz"))
 	webuiSvc := webui.New("webui", containerName(network, "webui"))
 
-	manager := Manager{
-		network: network,
-		services: []Service{
+	var services []Service
+
+	if network == "simnet" {
+		services = []Service{
+			xudSvc,
+			lndbtcSvc,
+			lndltcSvc,
+			connextSvc,
+			arbySvc,
+			webuiSvc,
+		}
+	} else {
+		services = []Service{
 			xudSvc,
 			lndbtcSvc,
 			lndltcSvc,
@@ -75,7 +86,12 @@ func NewManager(network string) (*Manager, error) {
 			arbySvc,
 			boltzSvc,
 			webuiSvc,
-		},
+		}
+	}
+
+	manager := Manager{
+		network:  network,
+		services: services,
 	}
 
 	dockerClientFactory, err := NewClientFactory()
@@ -127,43 +143,51 @@ func NewManager(network string) (*Manager, error) {
 	connextSvc.SetServiceManager(&manager)
 	connextSvc.SetDockerClientFactory(dockerClientFactory)
 
-	bitcoindSvc.SetServiceManager(&manager)
-	bitcoindSvc.SetDockerClientFactory(dockerClientFactory)
-	bitcoindRpc := RpcOptions{
-		Host: "bitcoind",
-		Port: 18333,
-		Credential: UsernamePasswordCredential{
-			Username: "xu",
-			Password: "xu",
-		},
+	if network != "simnet" {
+		bitcoindSvc.SetServiceManager(&manager)
+		bitcoindSvc.SetDockerClientFactory(dockerClientFactory)
+		bitcoindRpc := RpcOptions{
+			Host: "bitcoind",
+			Port: 18333,
+			Credential: UsernamePasswordCredential{
+				Username: "xu",
+				Password: "xu",
+			},
+		}
+		bitcoindSvc.ConfigureRpc(&bitcoindRpc)
 	}
-	bitcoindSvc.ConfigureRpc(&bitcoindRpc)
 
-	litecoindSvc.SetServiceManager(&manager)
-	litecoindSvc.SetDockerClientFactory(dockerClientFactory)
-	litecoindRpc := RpcOptions{
-		Host: "litecoind",
-		Port: 19333,
-		Credential: UsernamePasswordCredential{
-			Username: "xu",
-			Password: "xu",
-		},
+	if network != "simnet" {
+		litecoindSvc.SetServiceManager(&manager)
+		litecoindSvc.SetDockerClientFactory(dockerClientFactory)
+		litecoindRpc := RpcOptions{
+			Host: "litecoind",
+			Port: 19333,
+			Credential: UsernamePasswordCredential{
+				Username: "xu",
+				Password: "xu",
+			},
+		}
+		litecoindSvc.ConfigureRpc(&litecoindRpc)
 	}
-	litecoindSvc.ConfigureRpc(&litecoindRpc)
 
-	gethSvc.SetServiceManager(&manager)
-	gethSvc.SetDockerClientFactory(dockerClientFactory)
-	gethRpc := RpcOptions{
-		Host: "geth",
-		Port: 8545,
+	if network != "simnet" {
+		gethSvc.SetServiceManager(&manager)
+		gethSvc.SetDockerClientFactory(dockerClientFactory)
+		gethRpc := RpcOptions{
+			Host: "geth",
+			Port: 8545,
+		}
+		gethSvc.ConfigureRpc(&gethRpc)
 	}
-	gethSvc.ConfigureRpc(&gethRpc)
 
 	arbySvc.SetServiceManager(&manager)
 	arbySvc.SetDockerClientFactory(dockerClientFactory)
 
-	boltzSvc.SetServiceManager(&manager)
-	boltzSvc.SetDockerClientFactory(dockerClientFactory)
+	if network != "simnet" {
+		boltzSvc.SetServiceManager(&manager)
+		boltzSvc.SetDockerClientFactory(dockerClientFactory)
+	}
 
 	webuiSvc.SetServiceManager(&manager)
 	webuiSvc.SetDockerClientFactory(dockerClientFactory)
