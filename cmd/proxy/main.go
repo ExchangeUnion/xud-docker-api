@@ -10,6 +10,7 @@ import (
 	"github.com/googollee/go-socket.io/engineio/transport"
 	polling2 "github.com/googollee/go-socket.io/engineio/transport/polling"
 	"github.com/googollee/go-socket.io/engineio/transport/websocket"
+	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"log"
@@ -44,6 +45,11 @@ type Restful405Handler struct{}
 func main() {
 	logger := logrus.New()
 
+	err := godotenv.Load("/root/config.sh")
+	if err != nil {
+		logger.Fatal("Failed to load /root/config.sh")
+	}
+
 	var port int
 	//xudRpc := XudRpc{}
 
@@ -73,7 +79,7 @@ func main() {
 	}
 
 	logger.Info("Parsing command-line arguments")
-	err := app.Run(os.Args)
+	err = app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,7 +96,6 @@ func main() {
 
 	logger.Info("Creating router")
 	r := gin.Default()
-
 
 	pt := polling2.Default
 	wt := websocket.Default
@@ -141,9 +146,6 @@ func main() {
 	//r.POST("/socket.io/", gin.WrapH(server))
 	r.Handle("WS", "/socket.io/", gin.WrapH(server))
 
-
-
-
 	// Configuring CORS
 	// - No origin allowed by default
 	// - GET,POST, PUT, HEAD methods
@@ -157,10 +159,8 @@ func main() {
 	//r.NotFoundHandler = Restful404Handler{}
 	//r.MethodNotAllowedHandler = Restful405Handler{}
 
-
 	logger.Info("Configuring router")
 	manager.ConfigureRouter(r)
-
 
 	logger.Infof("Serving at :%d", port)
 	addr := fmt.Sprintf(":%d", port)
@@ -183,7 +183,7 @@ func openConsole(service string, server *socketio.Server, logger *logrus.Logger,
 	if !ok {
 		log.Fatal("Failed to convert to SingleContainerService")
 	}
-	c, err:= ss.SingleContainerService.GetContainer()
+	c, err := ss.SingleContainerService.GetContainer()
 	if err != nil {
 		log.Fatal(err)
 	}

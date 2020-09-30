@@ -19,8 +19,9 @@ import (
 )
 
 type Manager struct {
-	network  string
-	services []Service
+	network          string
+	services         []Service
+	optionalServices []string
 }
 
 func containerName(network string, service string) string {
@@ -64,34 +65,45 @@ func NewManager(network string) (*Manager, error) {
 	webuiSvc := webui.New("webui", containerName(network, "webui"))
 
 	var services []Service
+	var optionalServices []string
 
 	if network == "simnet" {
 		services = []Service{
-			xudSvc,
 			lndbtcSvc,
 			lndltcSvc,
 			connextSvc,
+			xudSvc,
 			arbySvc,
 			webuiSvc,
 		}
+		optionalServices = []string{
+			"arby",
+			"webui",
+		}
 	} else {
 		services = []Service{
-			xudSvc,
-			lndbtcSvc,
-			lndltcSvc,
-			connextSvc,
 			bitcoindSvc,
 			litecoindSvc,
 			gethSvc,
+			lndbtcSvc,
+			lndltcSvc,
+			connextSvc,
+			xudSvc,
 			arbySvc,
 			boltzSvc,
 			webuiSvc,
 		}
+		optionalServices = []string{
+			"arby",
+			"boltz",
+			"webui",
+		}
 	}
 
 	manager := Manager{
-		network:  network,
-		services: services,
+		network:          network,
+		services:         services,
+		optionalServices: optionalServices,
 	}
 
 	dockerClientFactory, err := NewClientFactory()
@@ -225,6 +237,11 @@ type ServiceEntry struct {
 	Name string `json:"name"`
 }
 
+type ServiceStatus struct {
+	Service string `json:"service"`
+	Status  string `json:"status"`
+}
+
 func (t *Manager) ConfigureRouter(r *gin.Engine) {
 
 	r.GET("/api/v1/services", func(c *gin.Context) {
@@ -250,7 +267,14 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		c.JSON(http.StatusOK, status)
+
+		var result []ServiceStatus
+
+		for _, svc := range t.services {
+			result = append(result, ServiceStatus{Service: svc.GetName(), Status: status[svc.GetName()]})
+		}
+
+		c.JSON(http.StatusOK, result)
 	})
 
 	r.GET("/api/v1/status/:service", func(c *gin.Context) {
@@ -265,7 +289,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		c.JSON(http.StatusOK, status)
+		c.JSON(http.StatusOK, ServiceStatus{Service: service, Status: status})
 	})
 
 	r.GET("/api/v1/logs/:service", func(c *gin.Context) {

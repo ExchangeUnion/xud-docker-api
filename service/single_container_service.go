@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 )
 
@@ -45,11 +46,23 @@ func (t *SingleContainerService) GetContainer() (*Container, error) {
 	}, nil
 }
 
+func (t *SingleContainerService) IsDisabled() bool {
+	key := fmt.Sprintf("XUD_DOCKER_SERVICE_%s_DISABLED", strings.ToUpper(t.GetName()))
+	value := os.Getenv(key)
+	if value == "true" {
+		return true
+	}
+	return false
+}
+
 // GetStatus implements Service interface
 func (t *SingleContainerService) GetStatus() (string, error) {
 	status, err := t.GetContainerStatus()
 	if err != nil {
 		if strings.Contains(err.Error(), "No such container") {
+			if t.IsDisabled() {
+				return "Disabled", nil
+			}
 			return "Container missing", nil
 		}
 		return "", err
