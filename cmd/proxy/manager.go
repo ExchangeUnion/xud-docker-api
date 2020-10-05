@@ -113,14 +113,25 @@ func NewManager(network string) (*Manager, error) {
 
 	xudSvc.SetServiceManager(&manager)
 	xudSvc.SetDockerClientFactory(dockerClientFactory)
+
 	var xudRpcPort int16
+	var bitcoindRpcPort int16
+	var litecoindRpcPort int16
+
 	if network == "simnet" {
 		xudRpcPort = 28886
+		bitcoindRpcPort = 28332
+		litecoindRpcPort = 29332
 	} else if network == "testnet" {
 		xudRpcPort = 18886
+		bitcoindRpcPort = 18332
+		litecoindRpcPort = 19332
 	} else if network == "mainnet" {
 		xudRpcPort = 8886
+		bitcoindRpcPort = 8332
+		litecoindRpcPort = 9332
 	}
+
 	xudRpc := RpcOptions{
 		Host:    "xud",
 		Port:    xudRpcPort,
@@ -160,7 +171,7 @@ func NewManager(network string) (*Manager, error) {
 		bitcoindSvc.SetDockerClientFactory(dockerClientFactory)
 		bitcoindRpc := RpcOptions{
 			Host: "bitcoind",
-			Port: 18333,
+			Port: bitcoindRpcPort,
 			Credential: UsernamePasswordCredential{
 				Username: "xu",
 				Password: "xu",
@@ -174,7 +185,7 @@ func NewManager(network string) (*Manager, error) {
 		litecoindSvc.SetDockerClientFactory(dockerClientFactory)
 		litecoindRpc := RpcOptions{
 			Host: "litecoind",
-			Port: 19333,
+			Port: litecoindRpcPort,
 			Credential: UsernamePasswordCredential{
 				Username: "xu",
 				Password: "xu",

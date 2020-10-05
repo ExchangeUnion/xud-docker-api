@@ -28,7 +28,8 @@ type LndService struct {
 }
 
 func (t *LndService) GetBackendNode() (string, error) {
-	values, err := t.GetConfigValues(fmt.Sprintf("%s.node", t.chain))
+	key := fmt.Sprintf("%s.node", t.chain)
+	values, err := t.GetConfigValues(key)
 	if err != nil {
 		return "", err
 	}

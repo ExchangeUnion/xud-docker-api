@@ -83,14 +83,14 @@ func (t *BitcoindService) getMode() (Mode, error) {
 	if err != nil {
 		return Unknown, err
 	}
-	if backend == "bitcoind" {
+	if backend == "bitcoind" || backend == "litecoind" {
 		// could be native or external
-		values, err := lndSvc.GetConfigValues("bitcoind.rpchost")
+		values, err := lndSvc.GetConfigValues(fmt.Sprintf("%s.rpchost", backend))
 		if err != nil {
 			return Unknown, err
 		}
 		host := values[0]
-		if host == "bitcoind" {
+		if host == backend {
 			return Native, nil
 		} else {
 			return External, nil
@@ -108,13 +108,9 @@ func (t *BitcoindService) GetStatus() (string, error) {
 	}
 	switch mode {
 	case Native:
-		containerStatus, err := t.GetContainerStatus()
-		if err != nil {
-			// TODO container missing
-			return "", err
-		}
-		if containerStatus != "running" {
-			return "Container " + containerStatus, nil
+		status, err := t.SingleContainerService.GetStatus()
+		if status != "Container running" {
+			return status, nil
 		}
 		info, err := t.GetBlockchainInfo()
 		if err != nil {
@@ -132,12 +128,7 @@ func (t *BitcoindService) GetStatus() (string, error) {
 			if total == 0 {
 				return "Syncing 0.00% (0/0)", nil
 			} else {
-				p := current / total * 100
-				//if p > 0.005 {
-				//	p = p - 0.005
-				//} else {
-				//	p = 0
-				//}
+				p := float32(current) / float32(total) * 100.0
 				return fmt.Sprintf("Syncing %.2f%% (%d/%d)", p, current, total), nil
 			}
 		}
