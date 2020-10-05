@@ -222,16 +222,31 @@ func (t *Manager) getServices() []Service {
 	return t.services
 }
 
-func (t *Manager) GetStatus() (map[string]string, error) {
+type StatusResult struct {
+	Service string
+	Status  string
+}
+
+func (t *Manager) GetStatus() map[string]string {
 	result := map[string]string{}
+	ch := make(chan StatusResult)
 	for _, svc := range t.services {
-		status, err := svc.GetStatus()
-		if err != nil {
-			return nil, err
-		}
-		result[svc.GetName()] = status
+		s := svc
+		go func() {
+			status, err := s.GetStatus()
+			if err != nil {
+				status = fmt.Sprintf("Error: %s", err)
+			}
+			ch <- StatusResult{Service: s.GetName(), Status: status}
+		}()
 	}
-	return result, nil
+
+	for i := 0; i < cap(t.services); i++ {
+		r := <-ch
+		result[r.Service] = r.Status
+	}
+
+	return result
 }
 
 func (t *Manager) GetService(name string) (Service, error) {
@@ -273,11 +288,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 	})
 
 	r.GET("/api/v1/status", func(c *gin.Context) {
-		status, err := t.GetStatus()
-		if err != nil {
-			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		status := t.GetStatus()
 
 		var result []ServiceStatus
 
@@ -297,8 +308,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 		}
 		status, err := s.GetStatus()
 		if err != nil {
-			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
-			return
+			status = fmt.Sprintf("Error: %s", err)
 		}
 		c.JSON(http.StatusOK, ServiceStatus{Service: service, Status: status})
 	})
