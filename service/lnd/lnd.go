@@ -205,7 +205,7 @@ func (t *LndService) GetStatus() (string, error) {
 		info, err := t.GetInfo()
 		if err != nil {
 			if strings.Contains(err.Error(), "Wallet is encrypted") {
-				return "Wallet locked. Unlock with xucli unlock.", nil
+				return "Wallet locked. Unlock with lncli unlock.", nil
 			}
 			return "", err
 		}
