@@ -320,7 +320,9 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 			utils.JsonError(c, err.Error(), http.StatusNotFound)
 			return
 		}
-		logs, err := s.GetLogs("1h", "all")
+		since := c.DefaultQuery("since", "1h")
+		tail := c.DefaultQuery("tail", "all")
+		logs, err := s.GetLogs(since, tail)
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			return
