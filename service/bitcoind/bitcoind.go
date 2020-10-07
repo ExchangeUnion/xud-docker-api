@@ -2,6 +2,7 @@ package bitcoind
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
@@ -52,14 +53,13 @@ func (t *BitcoindService) getRpcClient() jsonrpc.RPCClient {
 	return t.rpcClient
 }
 
-func (t *BitcoindService) GetBlockchainInfo() (*BlockchainInfo, error) {
+func (t *BitcoindService) GetBlockchainInfo() (*jsonrpc.RPCResponse, error) {
 	client := t.getRpcClient()
-	var info *BlockchainInfo
-	err := client.CallFor(&info, "getblockchaininfo")
+	response, err := client.Call("getblockchaininfo")
 	if err != nil {
 		return nil, err
 	}
-	return info, nil
+	return response, nil
 }
 
 func (t *BitcoindService) getL2Service() (*lnd.LndService, error) {
@@ -112,16 +112,23 @@ func (t *BitcoindService) GetStatus() (string, error) {
 		if status != "Container running" {
 			return status, nil
 		}
-		info, err := t.GetBlockchainInfo()
+		resp, err := t.GetBlockchainInfo()
 		if err != nil {
-			// TODO handle err
-			// error code: -28
-			// error message:
-			// Loading block index...
 			return fmt.Sprintf("Waiting for %s to come up...", t.GetName()), nil
 		}
-		current := info.Blocks
-		total := info.Headers
+		if resp.Error != nil {
+			// Loading block index...
+			return resp.Error.Message, nil
+		}
+		r := resp.Result.(map[string]interface{})
+		current, err := r["blocks"].(json.Number).Int64()
+		if err != nil {
+			return "", err
+		}
+		total, err := r["headers"].(json.Number).Int64()
+		if err != nil {
+			return "", err
+		}
 		if current > 0 && current == total {
 			return "Ready", nil
 		} else {
