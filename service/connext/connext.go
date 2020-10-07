@@ -3,6 +3,7 @@ package connext
 import (
 	"errors"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud"
 	"net/http"
 )
 
@@ -22,6 +23,15 @@ func (t *ConnextService) GetStatus() (string, error) {
 		return "", err
 	}
 	if status == "Container running" {
+		svc, err := t.GetServiceManager().GetService("xud")
+		if err == nil {
+			xudSvc := svc.(*xud.XudService)
+			info, err := xudSvc.GetInfo()
+			if err == nil {
+				return info.Connext.Status, nil
+			}
+		}
+
 		resp, err := http.Get("http://connext:5040/health")
 		if err != nil {
 			return "", err
