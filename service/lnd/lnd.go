@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type LndService struct {
@@ -64,7 +65,6 @@ func (t *LndService) getRpcClient() (pb.LightningClient, error) {
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 		opts = append(opts, grpc.WithBlock())
-		//opts = append(opts, grpc.WithTimeout(time.Duration(10000)))
 
 		macaroonCred, ok := t.rpcOptions.Credential.(service.MacaroonCredential)
 		if !ok {
@@ -73,8 +73,13 @@ func (t *LndService) getRpcClient() (pb.LightningClient, error) {
 
 		opts = append(opts, grpc.WithPerRPCCredentials(macaroonCred))
 
-		conn, err := grpc.Dial(addr, opts...)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		conn, err := grpc.DialContext(ctx, addr, opts...)
 		if err != nil {
+			if err.Error() == "context deadline exceeded" {
+				return nil, errors.New("cannot establish gRPC connection")
+			}
 			return nil, err
 		}
 
