@@ -11,6 +11,7 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/geth"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/litecoind"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/lnd"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/proxy"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/webui"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud"
 	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
@@ -63,6 +64,7 @@ func NewManager(network string) (*Manager, error) {
 	arbySvc := arby.New("arby", containerName(network, "arby"))
 	boltzSvc := boltz.New("boltz", containerName(network, "boltz"))
 	webuiSvc := webui.New("webui", containerName(network, "webui"))
+	proxySvc := proxy.New("proxy", containerName(network, "proxy"))
 
 	var services []Service
 	var optionalServices []string
@@ -75,10 +77,12 @@ func NewManager(network string) (*Manager, error) {
 			xudSvc,
 			arbySvc,
 			webuiSvc,
+			proxySvc,
 		}
 		optionalServices = []string{
 			"arby",
 			"webui",
+			"proxy",
 		}
 	} else {
 		services = []Service{
@@ -92,11 +96,13 @@ func NewManager(network string) (*Manager, error) {
 			arbySvc,
 			boltzSvc,
 			webuiSvc,
+			proxySvc,
 		}
 		optionalServices = []string{
 			"arby",
 			"boltz",
 			"webui",
+			"proxy",
 		}
 	}
 
@@ -214,6 +220,9 @@ func NewManager(network string) (*Manager, error) {
 
 	webuiSvc.SetServiceManager(&manager)
 	webuiSvc.SetDockerClientFactory(dockerClientFactory)
+
+	proxySvc.SetServiceManager(&manager)
+	proxySvc.SetDockerClientFactory(dockerClientFactory)
 
 	return &manager, nil
 }

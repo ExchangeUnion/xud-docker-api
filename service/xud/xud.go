@@ -2,6 +2,7 @@ package xud
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/xud/xudrpc"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type XudService struct {
@@ -100,10 +102,14 @@ func (t *XudService) getRpcClient() (pb.XudClient, error) {
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 		opts = append(opts, grpc.WithBlock())
-		//opts = append(opts, grpc.WithTimeout(time.Duration(10000)))
 
-		conn, err := grpc.Dial(addr, opts...)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		conn, err := grpc.DialContext(ctx, addr, opts...)
 		if err != nil {
+			if err.Error() == "context deadline exceeded" {
+				return nil, errors.New("cannot establish gRPC connection")
+			}
 			return nil, err
 		}
 
