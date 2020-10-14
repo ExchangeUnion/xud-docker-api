@@ -104,7 +104,7 @@ service Xud {
 
   /* Discover nodes from a specific peer and apply new connections */
   rpc DiscoverNodes(DiscoverNodesRequest) returns (DiscoverNodesResponse) {
-      option (google.api.http) = {
+    option (google.api.http) = {
       post: "/v1/discovernodes"
       body: "*"
     };
@@ -222,7 +222,7 @@ service Xud {
    * and peers are notified that the order is no longer valid. Any portion of the order that is
    * on hold due to ongoing swaps will not be removed until after the swap attempts complete.
    * shell: xucli removeorder <order_id> [quantity] */
-   rpc RemoveOrder(RemoveOrderRequest) returns (RemoveOrderResponse) {
+  rpc RemoveOrder(RemoveOrderRequest) returns (RemoveOrderResponse) {
     option (google.api.http) = {
       post: "/v1/removeorder"
       body: "*"
@@ -300,7 +300,7 @@ service Xud {
   /* Gets the trading limits for one or all currencies.
    * shell: xucli tradinglimits [currency] */
   rpc TradingLimits(TradingLimitsRequest) returns (TradingLimitsResponse) {
-      option (google.api.http) = {
+    option (google.api.http) = {
       get: "/v1/tradinglimits"
     };
   }
@@ -359,6 +359,8 @@ message Balance {
   uint64 wallet_balance = 5 [json_name = "wallet_balance"];
   // Unconfirmed wallet balance in satoshis.
   uint64 unconfirmed_wallet_balance = 6 [json_name = "unconfirmed_wallet_balance"];
+  // The balance that's reserved for open orders.
+  uint64 reserved_balance = 7 [json_name = "reserved_balance"];
 }
 
 message BanRequest {
@@ -398,6 +400,9 @@ message CloseChannelRequest {
   // For Connext only - the amount to extract from the channel. If 0 or unspecified,
   // the entire off-chain balance for the specified currency will be extracted.
   uint64 amount = 5 [json_name = "amount"];
+  // A manual fee rate set in sat/byte that should be used when crafting the closure
+  // transaction.
+  uint64 fee = 6 [json_name = "fee"];
 }
 
 message CloseChannelResponse {
@@ -422,6 +427,8 @@ message CreateNodeResponse {
   repeated string seed_mnemonic = 1;
   // The list of lnd clients that were initialized.
   repeated string initialized_lnds = 2;
+  // Whether the connext wallet was initialized.
+  bool initialized_connext = 3;
 }
 
 message Currency {
@@ -478,7 +485,7 @@ message GetBalanceRequest {
 }
 message GetBalanceResponse {
   // A map between currency ticker symbols and their balances.
-  map<string, Balance> balances = 1 [json_name = "orders"];
+  map<string, Balance> balances = 1 [json_name = "balances"];
 }
 
 message GetInfoRequest {}
@@ -534,7 +541,7 @@ message ListOrdersRequest {
   Owner owner = 2 [json_name = "owner"];
   // The maximum number of orders to return from each side of the order book.
   uint32 limit = 3 [json_name = "limit"];
-  // Whether to include the node aliases of owners of the orders. 
+  // Whether to include the node aliases of owners of the orders.
   bool include_aliases = 4 [json_name = "include_aliases"];
 }
 message ListOrdersResponse {
@@ -580,6 +587,8 @@ message OpenChannelRequest {
   uint64 amount = 3 [json_name = "amount"];
   // The balance amount to be pushed to the remote side of the channel denominated in satoshis.
   uint64 push_amount = 4 [json_name = "push_amount"];
+  // The manual fee rate set in sat/byte that should be used when crafting the funding transaction in the channel.
+  uint64 fee = 5 [json_name = "fee"];
 }
 
 message OpenChannelResponse {
@@ -754,6 +763,9 @@ message RestoreNodeRequest {
 message RestoreNodeResponse {
   // The list of lnd clients that were initialized.
   repeated string restored_lnds = 1;
+
+  // Whether the connext wallet was initialized.
+  bool restored_connext = 2;
 }
 
 message ShutdownRequest {}
@@ -881,13 +893,13 @@ message TradingLimits {
 }
 
 message TradingLimitsRequest {
-    // The ticker symbol of the currency to query for, if unspecified then trading limits for all supported
-    // currencies are queried.
-    string currency = 1 [json_name = "currency"];
+  // The ticker symbol of the currency to query for, if unspecified then trading limits for all supported
+  // currencies are queried.
+  string currency = 1 [json_name = "currency"];
 }
 message TradingLimitsResponse {
-    // A map between currency ticker symbols and their trading limits.
-    map<string, TradingLimits> limits = 1 [json_name = "limits"];
+  // A map between currency ticker symbols and their trading limits.
+  map<string, TradingLimits> limits = 1 [json_name = "limits"];
 }
 
 message UnbanRequest {
