@@ -359,8 +359,6 @@ message Balance {
   uint64 wallet_balance = 5 [json_name = "wallet_balance"];
   // Unconfirmed wallet balance in satoshis.
   uint64 unconfirmed_wallet_balance = 6 [json_name = "unconfirmed_wallet_balance"];
-  // The balance that's reserved for open orders.
-  uint64 reserved_balance = 7 [json_name = "reserved_balance"];
 }
 
 message BanRequest {
@@ -890,6 +888,10 @@ message TradingLimits {
   uint64 MaxSell = 1 [json_name = "max_sell"];
   // Max inbound capacity for a distinct channel denominated in satoshis.
   uint64 MaxBuy = 2 [json_name = "max_buy"];
+  // The outbound amount reserved for open orders.
+  uint64 reserved_outbound = 3 [json_name = "reserved_outbound"];
+  // The inbound amount reserved for open orders.
+  uint64 reserved_inbound = 4 [json_name = "reserved_inbound"];
 }
 
 message TradingLimitsRequest {
