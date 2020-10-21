@@ -889,9 +889,9 @@ message TradingLimits {
   // Max inbound capacity for a distinct channel denominated in satoshis.
   uint64 MaxBuy = 2 [json_name = "max_buy"];
   // The outbound amount reserved for open orders.
-  uint64 reserved_outbound = 3 [json_name = "reserved_outbound"];
+  uint64 reserved_sell = 3 [json_name = "reserved_sell"];
   // The inbound amount reserved for open orders.
-  uint64 reserved_inbound = 4 [json_name = "reserved_inbound"];
+  uint64 reserved_buy = 4 [json_name = "reserved_buy"];
 }
 
 message TradingLimitsRequest {
