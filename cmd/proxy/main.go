@@ -135,7 +135,7 @@ func main() {
 	r.Use(cors.New(config))
 
 	r.NoRoute(func(c *gin.Context) {
-		c.JSON(404, gin.H{"message": "not found"})
+		c.File("ui/index.html")
 	})
 	r.NoMethod(func(c *gin.Context) {
 		c.JSON(405, gin.H{"message": "method not allowed"})
