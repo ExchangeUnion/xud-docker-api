@@ -14,4 +14,5 @@ docker run -it --rm --name proxy \
 -v "$HOME/.xud-docker/$NETWORK/data/lndbtc:/root/.lndbtc" \
 -v "$HOME/.xud-docker/$NETWORK/data/lndltc:/root/.lndltc" \
 -v "$HOME/.xud-docker/$NETWORK/logs/config.sh:/root/config.sh" \
+-v "$HOME/.xud-docker/$NETWORK:/root/network:ro" \
 proxy
