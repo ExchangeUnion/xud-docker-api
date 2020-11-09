@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -129,7 +130,7 @@ func main() {
 	// - Credentials share disabled
 	// - Preflight requests cached for 12 hours
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000"}
+	config.AllowOrigins = []string{"https://localhost:3000"}
 
 	r.Use(cors.New(config))
 
@@ -143,11 +144,17 @@ func main() {
 	logger.Info("Configuring router")
 	manager.ConfigureRouter(r)
 
+	cmd := exec.Command("sh", "cert.sh")
+	err = cmd.Run()
+	if err != nil {
+		log.Fatal("cert.sh: ", err)
+	}
+
 	logger.Infof("Serving at :%d", port)
 	addr := fmt.Sprintf(":%d", port)
-	err = r.Run(addr)
+	err = http.ListenAndServeTLS(addr, "xudproxy.crt", "xudproxy.key", r)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("ListenAndServe: ", err)
 	}
 	//err = http.ListenAndServe(addr, r)
 	//if err != nil {
