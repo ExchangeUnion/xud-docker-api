@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	. "github.com/ExchangeUnion/xud-docker-api-poc/service"
@@ -16,7 +17,10 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud"
 	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/hpcloud/tail"
+	"io"
 	"net/http"
+	"strings"
 )
 
 type Manager struct {
@@ -277,6 +281,11 @@ type ServiceStatus struct {
 	Status  string `json:"status"`
 }
 
+type SetupStatus struct {
+	Status string `json:"status"`
+	Details interface{} `json:"details"`
+}
+
 func (t *Manager) ConfigureRouter(r *gin.Engine) {
 
 	r.GET("/api/v1/services", func(c *gin.Context) {
@@ -344,6 +353,73 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 				utils.JsonError(c, err.Error(), http.StatusInternalServerError)
 			}
 		}
+	})
+
+	r.GET("/api/v1/setup-status", func(c *gin.Context) {
+		c.Stream(func(w io.Writer) bool {
+			logfile := fmt.Sprintf("/root/network/logs/%s.log", t.network)
+			t, err := tail.TailFile(logfile, tail.Config{
+				Follow: true,
+				ReOpen: true})
+			if err != nil {
+				return false
+			}
+			for line := range t.Lines {
+				if strings.Contains(line.Text, "Waiting for XUD dependencies to be ready") {
+					status := SetupStatus{Status: "Waiting for XUD dependencies to be ready", Details: nil}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "LightSync") {
+					parts := strings.Split(line.Text, " [LightSync] ")
+					parts = strings.Split(parts[1], " | ")
+					details := map[string]string{}
+					status := SetupStatus{Status: "Syncing light clients", Details: details}
+					for _, p := range parts {
+						kv := strings.Split(p, ": ")
+						details[kv[0]] = kv[1]
+					}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "Setup wallets") {
+					status := SetupStatus{Status: "Setup wallets", Details: nil}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "Create wallets") {
+					status := SetupStatus{Status: "Create wallets", Details: nil}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "Restore wallets") {
+					status := SetupStatus{Status: "Restore wallets", Details: nil}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "Setup backup location") {
+					status := SetupStatus{Status: "Setup backup location", Details: nil}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "Unlock wallets") {
+					status := SetupStatus{Status: "Unlock wallets", Details: nil}
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+				} else if strings.Contains(line.Text, "Start shell") {
+					break
+				}
+			}
+			return false
+		})
 	})
 
 	for _, svc := range t.services {
