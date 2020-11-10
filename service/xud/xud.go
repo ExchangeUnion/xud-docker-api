@@ -118,8 +118,8 @@ func (t *XudService) getRpcClient() (pb.XudClient, error) {
 	return t.rpcClient, nil
 }
 
-func (t *XudService) ConfigureRouter(r *gin.Engine) {
-	r.GET("/api/v1/xud/getinfo", func(c *gin.Context) {
+func (t *XudService) ConfigureRouter(r *gin.RouterGroup) {
+	r.GET("/v1/xud/getinfo", func(c *gin.Context) {
 		resp, err := t.GetInfo()
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
@@ -133,7 +133,7 @@ func (t *XudService) ConfigureRouter(r *gin.Engine) {
 		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 	})
-	r.GET("/api/v1/xud/getbalance", func(c *gin.Context) {
+	r.GET("/v1/xud/getbalance", func(c *gin.Context) {
 		resp, err := t.GetBalance("")
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
@@ -147,7 +147,7 @@ func (t *XudService) ConfigureRouter(r *gin.Engine) {
 		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 	})
-	r.GET("/api/v1/xud/getbalance/:currency", func(c *gin.Context) {
+	r.GET("/v1/xud/getbalance/:currency", func(c *gin.Context) {
 		resp, err := t.GetBalance(c.Param("currency"))
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
@@ -161,7 +161,7 @@ func (t *XudService) ConfigureRouter(r *gin.Engine) {
 		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 	})
-	r.GET("/api/v1/xud/tradehistory", func(c *gin.Context) {
+	r.GET("/v1/xud/tradehistory", func(c *gin.Context) {
 		limitStr := c.DefaultQuery("limit", "0")
 		limit, err := strconv.ParseUint(limitStr, 10, 32)
 		if err != nil {
@@ -187,7 +187,7 @@ func (t *XudService) ConfigureRouter(r *gin.Engine) {
 		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 	})
-	r.GET("/api/v1/xud/tradinglimits", func(c *gin.Context) {
+	r.GET("/v1/xud/tradinglimits", func(c *gin.Context) {
 		resp, err := t.GetTradingLimits("")
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
@@ -201,7 +201,7 @@ func (t *XudService) ConfigureRouter(r *gin.Engine) {
 		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 	})
-	r.GET("/api/v1/xud/tradinglimits/:currency", func(c *gin.Context) {
+	r.GET("/v1/xud/tradinglimits/:currency", func(c *gin.Context) {
 		resp, err := t.GetTradingLimits(c.Param("currency"))
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)

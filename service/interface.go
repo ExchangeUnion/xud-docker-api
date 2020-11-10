@@ -7,7 +7,7 @@ import (
 type Service interface {
 	GetName() string
 	GetStatus() (string, error)
-	ConfigureRouter(r *gin.Engine)
+	ConfigureRouter(r *gin.RouterGroup)
 	Close()
 	GetLogs(since string, tail string) (<-chan string, error)
 }

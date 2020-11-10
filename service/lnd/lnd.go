@@ -159,8 +159,8 @@ func (t *LndService) GetInfo() (*pb.GetInfoResponse, error) {
 	return client.GetInfo(context.Background(), &req)
 }
 
-func (t *LndService) ConfigureRouter(r *gin.Engine) {
-	r.GET(fmt.Sprintf("/api/v1/%s/getinfo", t.GetName()), func(c *gin.Context) {
+func (t *LndService) ConfigureRouter(r *gin.RouterGroup) {
+	r.GET(fmt.Sprintf("/v1/%s/getinfo", t.GetName()), func(c *gin.Context) {
 		resp, err := t.GetInfo()
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusInternalServerError)

@@ -26,7 +26,7 @@ func (t *AbstractService) GetStatus() (string, error) {
 	return "Unknown", nil
 }
 
-func (t *AbstractService) ConfigureRouter(r *gin.Engine) {
+func (t *AbstractService) ConfigureRouter(r *gin.RouterGroup) {
 }
 
 func (t *AbstractService) Close() {
