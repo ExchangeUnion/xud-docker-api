@@ -12,9 +12,12 @@ type AbstractService struct {
 }
 
 func NewAbstractService(name string) *AbstractService {
+	logger := logrus.New()
+	logger.SetLevel(logrus.DebugLevel)
+
 	return &AbstractService{
 		name:   name,
-		logger: logrus.New(),
+		logger: logger,
 	}
 }
 
