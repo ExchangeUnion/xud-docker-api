@@ -85,7 +85,16 @@ func (t *SingleContainerService) GetLogs(since string, tail string) (<-chan stri
 	if err != nil {
 		return nil, err
 	}
-	return c.GetLogs(since, tail)
+	return c.GetLogs(since, tail, false)
+}
+
+// GetContainerLog is a shortcut function
+func (t *SingleContainerService) FollowLogs(since string, tail string) (<-chan string, error) {
+	c, err := t.GetContainer()
+	if err != nil {
+		return nil, err
+	}
+	return c.GetLogs(since, tail, true)
 }
 
 // GetContainerEnvironmentVariable is a shortcut function

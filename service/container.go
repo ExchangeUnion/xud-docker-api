@@ -109,12 +109,13 @@ func (t *Container) ExecInteractive(command []string) (string, io.Reader, io.Wri
 	return execId, r, attachResp.Conn, nil
 }
 
-func (t *Container) GetLogs(since string, tail string) (<-chan string, error) {
+func (t *Container) GetLogs(since string, tail string, follow bool) (<-chan string, error) {
 	reader, err := t.client.ContainerLogs(context.Background(), t.c.ID, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Since:      since,
 		Tail:       tail,
+		Follow:     follow,
 	})
 
 	if err != nil {
