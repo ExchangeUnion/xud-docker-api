@@ -254,6 +254,7 @@ func (t *LndService) watchNeutrinoSyncing() error {
 	for err != nil {
 		t.GetLogger().Debug("[watch] Waiting for Docker container to be created")
 		time.Sleep(1 * time.Second)
+		c, err = t.GetContainer()
 	}
 	t.GetLogger().Debug("[watch] Got container")
 	startedAt := c.Unwrap().State.StartedAt
