@@ -221,6 +221,12 @@ func NewManager(network string) (*Manager, error) {
 	if network != "simnet" {
 		boltzSvc.SetServiceManager(&manager)
 		boltzSvc.SetDockerClientFactory(dockerClientFactory)
+		boltzRpc := boltz.RpcOptions{
+			Host:    "boltz",
+			BtcPort: 9002,
+			LtcPort: 9003,
+		}
+		boltzSvc.ConfigureRpc(&boltzRpc)
 	}
 
 	webuiSvc.SetServiceManager(&manager)
