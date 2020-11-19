@@ -251,7 +251,7 @@ func (t *LndService) getCurrentHeight() (uint32, error) {
 func (t *LndService) watchNeutrinoSyncing() error {
 	t.GetLogger().Debug("[watch] Neutrino syncing")
 	c, err := t.GetContainer()
-	for err != nil {
+	for err != nil && c != nil {
 		t.GetLogger().Debug("[watch] Waiting for Docker container to be created")
 		time.Sleep(1 * time.Second)
 		c, err = t.GetContainer()

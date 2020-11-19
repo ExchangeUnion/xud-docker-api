@@ -34,7 +34,10 @@ func (t *SingleContainerService) GetDockerClientFactory() DockerClientFactory {
 
 func (t *SingleContainerService) GetContainer() (*Container, error) {
 	ctx := context.Background()
-	cli := t.dockerClientFactory.GetSharedInstance()
+	cli, err := t.dockerClientFactory.NewInstance() // FIXME use shared instance
+	if err != nil {
+		return nil, err
+	}
 	c, err := cli.ContainerInspect(ctx, t.containerName)
 	if err != nil {
 		return nil, err

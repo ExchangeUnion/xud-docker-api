@@ -431,7 +431,6 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 				return false
 			})
 		})
-
 	}
 
 	for _, svc := range t.services {
