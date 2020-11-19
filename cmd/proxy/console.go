@@ -240,14 +240,12 @@ func initSioConsole() {
 			}
 		})
 
-
-
 		s.Join("output")
 		// TODO resize
 
 		go func() {
 			//io.Copy(SioWriter{Conn: s}, ptmx)
-			var buf = make([]byte, 1024)
+			var buf = make([]byte, 65536)
 			for {
 				pty_ := console.Pty
 
@@ -256,10 +254,10 @@ func initSioConsole() {
 					logger.Errorf("Failed to read from console %s: %s", req.Id, err)
 					break
 				}
-				buf = buf[:n]
-				logger.Debugf("[console] %s: <output> %v", console.Id, buf)
+				data := buf[:n]
+				logger.Debugf("[console/%s] <output> %v", console.Id, data)
 
-				sioServer.BroadcastToRoom("/", "output", e, string(buf))
+				sioServer.BroadcastToRoom("/", "output", e + "-output", string(data))
 			}
 		}()
 	})
