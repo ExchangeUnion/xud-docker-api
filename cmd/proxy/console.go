@@ -15,7 +15,7 @@ import (
 
 var (
 	consoleMap = make(map[string]Console)
-	mutex = sync.Mutex{}
+	mutex      = sync.Mutex{}
 )
 
 type Console struct {
@@ -53,11 +53,16 @@ func listConsoles(c *gin.Context) {
 }
 
 type TerminalSize struct {
-	Rows int `json:"rows"`
-	Cols int `json:"cols"`
+	Rows uint16 `json:"rows"`
+	Cols uint16 `json:"cols"`
 }
 
 type StartRequest struct {
+	Id   string       `json:"id"`
+	Size TerminalSize `json:"size"`
+}
+
+type ResizeRequest struct {
 	Id   string       `json:"id"`
 	Size TerminalSize `json:"size"`
 }
@@ -190,11 +195,11 @@ alias walletwithdraw='xucli walletwithdraw'
 `)
 }
 
-func startShell(console *Console) error {
+func startShell(console *Console, size TerminalSize) error {
 	writeInitScript(console.Network)
-	c := exec.Command("bash", "--init-file", "init.bash")
+	c := exec.Command("/bin/bash", "--init-file", "init.bash")
 
-	ptmx, err := pty.Start(c)
+	ptmx, err := pty.StartWithSize(c, &pty.Winsize{Cols: size.Cols, Rows: size.Rows, X: 0, Y: 0})
 	if err != nil {
 		return err
 	}
@@ -206,7 +211,6 @@ func startShell(console *Console) error {
 
 func initSioConsole() {
 	sioServer.OnEvent("/", "start", func(s socketio.Conn, data string) {
-		// data = id + size
 		req := StartRequest{}
 		err := json.Unmarshal([]byte(data), &req)
 		if err != nil {
@@ -221,16 +225,17 @@ func initSioConsole() {
 			s.Emit("start", "console not found")
 			return
 		}
-		err = startShell(console)
+		err = startShell(console, req.Size)
 		if err != nil {
 			s.Emit("start", fmt.Sprintf("failed to start: %s", err))
 			return
 		}
 
-		e := fmt.Sprintf("console-%s", console.Id)
+		inputEvent := fmt.Sprintf("console.%s.input", console.Id)
+		outputEvent := fmt.Sprintf("console.%s.output", console.Id)
 
-		sioServer.OnEvent("/", e, func(s socketio.Conn, data string) {
-			logger.Debugf("[console] %s: <input> %v", console.Id, data)
+		sioServer.OnEvent("/", inputEvent, func(s socketio.Conn, data string) {
+			logger.Debugf("[console/%s] ---> %v", console.Id, data)
 
 			pty_ := console.Pty
 
@@ -240,11 +245,7 @@ func initSioConsole() {
 			}
 		})
 
-		s.Join("output")
-		// TODO resize
-
 		go func() {
-			//io.Copy(SioWriter{Conn: s}, ptmx)
 			var buf = make([]byte, 65536)
 			for {
 				pty_ := console.Pty
@@ -255,10 +256,30 @@ func initSioConsole() {
 					break
 				}
 				data := buf[:n]
-				logger.Debugf("[console/%s] <output> %v", console.Id, data)
+				logger.Debugf("[console/%s] <--- %v", console.Id, data)
 
-				sioServer.BroadcastToRoom("/", "output", e + "-output", string(data))
+				sioServer.BroadcastToRoom("/", s.ID(), outputEvent, string(data))
 			}
 		}()
+	})
+
+	sioServer.OnEvent("/", "resize", func(s socketio.Conn, data string) {
+		req := ResizeRequest{}
+		err := json.Unmarshal([]byte(data), &req)
+		if err != nil {
+			s.Emit("resize", fmt.Sprintf("invalid request: %s", err))
+			return
+		}
+
+		console := findById(req.Id)
+		if console == nil {
+			s.Emit("resize", "console not found")
+			return
+		}
+
+		err = pty.Setsize(console.Pty, &pty.Winsize{Rows: req.Size.Rows, Cols: req.Size.Cols, X: 0, Y: 0})
+		if err != nil {
+			s.Emit("resize", fmt.Sprintf("failed to resize: %s", err))
+		}
 	})
 }

@@ -5,7 +5,7 @@ set -euo pipefail
 NETWORK=${1:-testnet}
 
 docker build . -t proxy
-docker run -it --rm --name proxy \
+docker run -t --rm --name proxy \
 -e "NETWORK=$NETWORK" \
 --net "${NETWORK}_default" \
 -p 8080:8080 \
