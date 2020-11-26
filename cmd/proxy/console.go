@@ -243,7 +243,7 @@ function litecoin-ctl() {
 	fi
 }
 function boltzcli() {
-	docker exec -it ${NETWORK}_boltz_1 boltzcli $@
+	docker exec -it ${NETWORK}_boltz_1 wrapper $@
 }
 
 alias getinfo='xucli getinfo'
