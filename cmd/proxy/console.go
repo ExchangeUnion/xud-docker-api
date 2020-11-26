@@ -141,13 +141,11 @@ Xucli shortcut commands
   [destination] [fee]
   
 General commands
-  status                                    show service status
   report                                    report issue
   logs                                      show service log
   start                                     start service
   stop                                      stop service
   restart                                   restart service
-  down                                      shutdown the environment
   up                                        bring up the environment
   help                                      show this help
   exit                                      exit xud-ctl shell
@@ -162,7 +160,7 @@ CLI commands
   boltzcli                                  boltz cli
 
 Boltzcli shortcut commands  
-  deposit <chain> deposit 
+  boltzcli <chain> deposit 
   --inbound [inbound_balance]               deposit from boltz (btc/ltc)
   boltzcli <chain> withdraw 
   <amount> <address>                        withdraw from boltz channel
@@ -274,7 +272,7 @@ alias sell='xucli sell'
 alias shutdown='xucli shutdown'
 alias streamorders='xucli streamorders'
 alias tradehistory='xucli tradehistory'
-alias tradelimits='xucli tradelimits'
+alias tradinglimits='xucli tradinglimits'
 alias unban='xucli unban'
 alias unlock='xucli unlock'
 alias walletdeposit='xucli walletdeposit'
