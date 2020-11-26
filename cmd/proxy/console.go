@@ -19,15 +19,15 @@ var (
 )
 
 type Console struct {
-	Id      string   `json:"id"`
-	Network string   `json:"network"`
-	Pty     *os.File `json:"-"`
+	Id           string   `json:"id"`
+	Network      string   `json:"network"`
+	ConnectionId string   `json:"connectionId"`
+	Pty          *os.File `json:"-"`
 }
 
 func init() {
 	router.GET("/api/v1/consoles", listConsoles)
 	router.GET("/api/v1/consoles/:id", getConsole)
-	router.POST("/api/v1/consoles", createConsole)
 }
 
 func findById(id string) *Console {
@@ -36,6 +36,16 @@ func findById(id string) *Console {
 		return nil
 	}
 	return &console
+}
+
+func findIdsByConnectionId(connectionId string) []string {
+	consoles := make([]string, 0)
+	for key, value := range consoleMap {
+		if value.ConnectionId == connectionId {
+			consoles = append(consoles, key)
+		}
+	}
+	return consoles
 }
 
 func getConsole(c *gin.Context) {
@@ -71,17 +81,13 @@ type StopRequest struct {
 	Id string `json:"id"`
 }
 
-func createConsole(c *gin.Context) {
-	network := os.Getenv("NETWORK")
-	id := fmt.Sprint(uuid.New())
-	console := Console{
-		Id:      id,
-		Network: network,
+func removeConsoles(connectionId string) {
+	consolesToRemove := findIdsByConnectionId(connectionId)
+	if len(consolesToRemove) > 0 {
+		for _, val := range consolesToRemove {
+			delete(consoleMap, val)
+		}
 	}
-	consoleMap[id] = console
-	e := fmt.Sprintf("console-%s", id)
-	logger.Debugf("[console] Register event %s", e)
-	c.JSON(http.StatusOK, console)
 }
 
 var help = `\
@@ -291,6 +297,20 @@ func startShell(console *Console, size TerminalSize) error {
 }
 
 func initSioConsole() {
+	sioServer.OnEvent("/", "create", func(s socketio.Conn, data string) {
+		network := os.Getenv("NETWORK")
+		id := fmt.Sprint(uuid.New())
+		console := Console{
+			Id:           id,
+			Network:      network,
+			ConnectionId: s.ID(),
+		}
+		consoleMap[id] = console
+		e := fmt.Sprintf("console-%s", id)
+		logger.Debugf("[console] Register event %s", e)
+		sioServer.BroadcastToRoom("/", s.ID(), "created", console.Id)
+	})
+
 	sioServer.OnEvent("/", "start", func(s socketio.Conn, data string) {
 		req := StartRequest{}
 		err := json.Unmarshal([]byte(data), &req)
@@ -362,5 +382,16 @@ func initSioConsole() {
 		if err != nil {
 			s.Emit("resize", fmt.Sprintf("failed to resize: %s", err))
 		}
+	})
+
+	sioServer.OnEvent("/", "stop", func(s socketio.Conn, data string) {
+		req := StopRequest{}
+		err := json.Unmarshal([]byte(data), &req)
+		if err != nil {
+			s.Emit("stop", fmt.Sprintf("invalid request: %s", err))
+			return
+		}
+
+		delete(consoleMap, req.Id)
 	})
 }

@@ -30,10 +30,12 @@ func NewSioServer(network string) (*socketio.Server, error) {
 		return nil
 	})
 	server.OnError("/", func(s socketio.Conn, e error) {
+		removeConsoles(s.ID())
 		logger.Errorf("[SocketIO] Client %v got an error: %v", s.ID(), e)
 	})
 
 	server.OnDisconnect("/", func(s socketio.Conn, reason string) {
+		removeConsoles(s.ID())
 		logger.Infof("[SocketIO] Client %v disconnected: %v", s.ID(), reason)
 	})
 
