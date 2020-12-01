@@ -21,4 +21,6 @@ type Service interface {
 	IsDisabled() bool
 	SetDisabled(value bool)
 	GetContainerId() string
+	GetMode() string
+	SetMode(value string)
 }

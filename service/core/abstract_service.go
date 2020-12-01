@@ -11,6 +11,7 @@ type AbstractService struct {
 	logger   *logrus.Logger
 
 	disabled bool
+	mode     string
 }
 
 func NewAbstractService(name string, services map[string]Service) *AbstractService {
@@ -21,6 +22,8 @@ func NewAbstractService(name string, services map[string]Service) *AbstractServi
 		name:     name,
 		services: services,
 		logger:   logger,
+		disabled: false,
+		mode:     "",
 	}
 }
 
@@ -66,4 +69,12 @@ func (t *AbstractService) IsDisabled() bool {
 
 func (t *AbstractService) SetDisabled(value bool) {
 	t.disabled = value
+}
+
+func (t *AbstractService) GetMode() string {
+	return t.mode
+}
+
+func (t *AbstractService) SetMode(value string) {
+	t.mode = value
 }

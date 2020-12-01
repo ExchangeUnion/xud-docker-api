@@ -39,10 +39,10 @@ var (
 )
 
 type Manager struct {
-	network  string
-	services []core.Service
-	factory  core.DockerClientFactory
-	logger   *logrus.Logger
+	network   string
+	services  []core.Service
+	factory   core.DockerClientFactory
+	logger    *logrus.Logger
 	listeners map[string]core.Listener
 }
 
@@ -75,11 +75,19 @@ func initServices(network string, dockerClient *docker.Client, listeners map[str
 	var name string
 	var cName string
 	var rpc map[string]interface{}
+	var disabled bool
+	var mode string
 
 	for _, x := range j {
 		name = x["name"].(string)
 		cName = containerName(network, name)
 		rpc = x["rpc"].(map[string]interface{})
+		disabled = x["disabled"].(bool)
+		if x["mode"] == nil {
+			mode = ""
+		} else {
+			mode = x["mode"].(string)
+		}
 		switch name {
 		case "bitcoind":
 			s = bitcoind.New(name, resultMap, cName, dockerClient, "lndbtc", rpc)
@@ -104,6 +112,9 @@ func initServices(network string, dockerClient *docker.Client, listeners map[str
 		default:
 			panic(errors.New("unsupported service: " + name))
 		}
+
+		s.SetDisabled(disabled)
+		s.SetMode(mode)
 
 		result = append(result, s)
 		resultMap[s.GetName()] = s
@@ -131,10 +142,10 @@ func NewManager(network string) (*Manager, error) {
 	listeners := map[string]core.Listener{}
 
 	manager := Manager{
-		network:  network,
-		services: initServices(network, factory.GetSharedInstance(), listeners),
-		factory:  factory,
-		logger:   logger,
+		network:   network,
+		services:  initServices(network, factory.GetSharedInstance(), listeners),
+		factory:   factory,
+		logger:    logger,
 		listeners: listeners,
 	}
 

@@ -8,7 +8,8 @@
       "username": "xu",
       "password": "xu"
     },
-    "disabled": "true"
+    "disabled": true,
+    "mode": "light"
   },
   {
     "name": "litecoind",
@@ -19,7 +20,8 @@
       "username": "xu",
       "password": "xu"
     },
-    "disabled": "true"
+    "disabled": true,
+    "mode": "light"
   },
   {
     "name": "geth",
@@ -28,7 +30,8 @@
       "host": "geth",
       "port": 8545
     },
-    "disabled": "true"
+    "disabled": true,
+    "mode": "light"
   },
   {
     "name": "lndbtc",

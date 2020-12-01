@@ -48,17 +48,15 @@ func NewSingleContainerService(
 	}
 
 	s := &SingleContainerService{
-		AbstractService:  a,
-		containerName:    containerName,
-		dockerClient:     dockerClient,
-		container:        c,
-		mutex:            &sync.Mutex{},
+		AbstractService: a,
+		containerName:   containerName,
+		dockerClient:    dockerClient,
+		container:       c,
+		mutex:           &sync.Mutex{},
 	}
 
 	return s
 }
-
-
 
 func (t *SingleContainerService) GetContainer() *Container {
 	t.mutex.Lock()
@@ -70,8 +68,8 @@ func (t *SingleContainerService) GetContainer() *Container {
 func (t *SingleContainerService) GetStatus() (string, error) {
 	status, err := t.GetContainerStatus()
 	if err != nil {
-		if strings.Contains(err.Error(), "No such container") {
-			if t.IsDisabled() {
+		if strings.Contains(err.Error(), "container not found") {
+			if t.IsDisabled() && (t.GetMode() == "" || t.GetMode() == "native") {
 				return "Disabled", nil
 			}
 			return "Container missing", nil

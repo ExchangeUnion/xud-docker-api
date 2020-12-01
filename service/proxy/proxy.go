@@ -21,15 +21,11 @@ func New(
 }
 
 func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
+	_, err := t.SingleContainerService.GetStatus()
 	if err != nil {
 		return "", err
 	}
-	if status == "Container running" {
-		return "Ready", nil
-	} else {
-		return status, nil
-	}
+	return "Ready", nil
 }
 
 func (t *Service) Close() error {
