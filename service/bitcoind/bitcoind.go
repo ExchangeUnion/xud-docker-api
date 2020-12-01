@@ -1,19 +1,18 @@
 package bitcoind
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api-poc/config"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/lnd"
-	"github.com/ybbus/jsonrpc"
+	docker "github.com/docker/docker/client"
 )
 
-type BitcoindService struct {
-	*service.SingleContainerService
-	rpcOptions    *service.RpcOptions
-	rpcClient     jsonrpc.RPCClient
+type Service struct {
+	*core.SingleContainerService
+	*RpcClient
 	l2ServiceName string
 }
 
@@ -28,53 +27,29 @@ const (
 
 func New(
 	name string,
+	services map[string]core.Service,
 	containerName string,
+	dockerClient *docker.Client,
 	l2ServiceName string,
-) *BitcoindService {
-	return &BitcoindService{
-		SingleContainerService: service.NewSingleContainerService(name, containerName),
+	rpcConfig config.RpcConfig,
+) *Service {
+	return &Service{
+		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
+		RpcClient:              NewRpcClient(rpcConfig),
 		l2ServiceName:          l2ServiceName,
 	}
 }
 
-func (t *BitcoindService) ConfigureRpc(options *service.RpcOptions) {
-	t.rpcOptions = options
-}
-
-func (t *BitcoindService) getRpcClient() jsonrpc.RPCClient {
-	if t.rpcClient == nil {
-		addr := fmt.Sprintf("http://%s:%d", t.rpcOptions.Host, t.rpcOptions.Port)
-		t.rpcClient = jsonrpc.NewClientWithOpts(addr, &jsonrpc.RPCClientOpts{
-			CustomHeaders: map[string]string{
-				"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("xu"+":"+"xu")),
-			},
-		})
-	}
-	return t.rpcClient
-}
-
-func (t *BitcoindService) GetBlockchainInfo() (*jsonrpc.RPCResponse, error) {
-	client := t.getRpcClient()
-	response, err := client.Call("getblockchaininfo")
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
-func (t *BitcoindService) getL2Service() (*lnd.LndService, error) {
-	s, err := t.GetServiceManager().GetService(t.l2ServiceName)
-	if err != nil {
-		return nil, err
-	}
-	lndSvc, ok := s.(*lnd.LndService)
+func (t *Service) getL2Service() (*lnd.Service, error) {
+	s := t.GetService(t.l2ServiceName)
+	lndSvc, ok := s.(*lnd.Service)
 	if !ok {
 		return nil, errors.New("cannot convert to LndService")
 	}
 	return lndSvc, nil
 }
 
-func (t *BitcoindService) getMode() (Mode, error) {
+func (t *Service) getMode() (Mode, error) {
 	lndSvc, err := t.getL2Service()
 	if err != nil {
 		return Unknown, err
@@ -101,7 +76,7 @@ func (t *BitcoindService) getMode() (Mode, error) {
 	return Unknown, nil
 }
 
-func (t *BitcoindService) GetStatus() (string, error) {
+func (t *Service) GetStatus() (string, error) {
 	mode, err := t.getMode()
 	if err != nil {
 		return "", err
@@ -147,4 +122,9 @@ func (t *BitcoindService) GetStatus() (string, error) {
 	default:
 		return "Error: Unknown mode", nil
 	}
+}
+
+func (t *Service) Close() error {
+	_ = t.RpcClient.Close()
+	return nil
 }

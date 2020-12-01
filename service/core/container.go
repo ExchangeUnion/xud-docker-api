@@ -1,4 +1,4 @@
-package service
+package core
 
 import (
 	"bufio"
@@ -127,11 +127,11 @@ func (t *Container) GetLogs(since string, tail string, follow bool) (<-chan stri
 	r, w := io.Pipe()
 
 	go func() {
-		n, err := stdcopy.StdCopy(w, w, reader)
+		_, err := stdcopy.StdCopy(w, w, reader)
 		if err != nil {
 			t.logger.Errorf("StdCopy error: %v", err)
 		}
-		t.logger.Infof("StdCopy %d bytes", n)
+		//t.logger.Infof("StdCopy %d bytes", n)
 		err = reader.Close()
 		if err != nil {
 			t.logger.Errorf("Failed to close reader: %v", err)

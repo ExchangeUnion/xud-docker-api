@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	"github.com/docker/docker/pkg/homedir"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 	"github.com/urfave/cli/v2"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 )
 
@@ -39,11 +41,16 @@ type Config struct {
 
 
 func loadConfig() (*Config, error) {
+	c := exec.Command("ls", "-la", "/root/.proxy")
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Run()
+
 	logger.Info("Loading config")
 
 	err := godotenv.Load("/root/config.sh")
 	if err != nil {
-		logger.Fatal("Failed to load /root/config.sh")
+		logger.Info("Skip /root/config.sh")
 	}
 
 	var port int
@@ -87,7 +94,6 @@ func setupCors(r gin.IRouter) {
 
 func main() {
 
-
 	config, err := loadConfig()
 	if err != nil {
 		logger.Fatalf("Failed to load config: %s", err)
@@ -96,7 +102,7 @@ func main() {
 	network := os.Getenv("NETWORK")
 
 	logger.Info("Creating service manager")
-	manager, err := NewManager(network)
+	manager, err := service.NewManager(network)
 	if err != nil {
 		logger.Fatalf("Failed to create service manager: %s", err)
 	}

@@ -1,23 +1,30 @@
 package arby
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api-poc/config"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	docker "github.com/docker/docker/client"
 )
 
-type ArbyService struct {
-	*service.SingleContainerService
+type Service struct {
+	*core.SingleContainerService
+	*RpcClient
 }
 
 func New(
 	name string,
+	services map[string]core.Service,
 	containerName string,
-) *ArbyService {
-	return &ArbyService{
-		SingleContainerService: service.NewSingleContainerService(name, containerName),
+	dockerClient *docker.Client,
+	rpcConfig config.RpcConfig,
+) *Service {
+	return &Service{
+		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
+		RpcClient:              NewRpcClient(rpcConfig),
 	}
 }
 
-func (t *ArbyService) GetStatus() (string, error) {
+func (t *Service) GetStatus() (string, error) {
 	status, err := t.SingleContainerService.GetStatus()
 	if err != nil {
 		return "", err
@@ -27,4 +34,9 @@ func (t *ArbyService) GetStatus() (string, error) {
 	} else {
 		return status, nil
 	}
+}
+
+func (t *Service) Close() error {
+	_ = t.RpcClient.Close()
+	return nil
 }

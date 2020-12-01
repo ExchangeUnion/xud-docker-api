@@ -1,17 +1,24 @@
-package service
+package core
 
 import (
 	"github.com/gin-gonic/gin"
+	"io"
 )
 
+type Listener interface {
+	OnEvent(type_ string)
+}
+
 type Service interface {
+	io.Closer
+	Listener
+
 	GetName() string
 	GetStatus() (string, error)
 	ConfigureRouter(r *gin.RouterGroup)
-	Close()
 	GetLogs(since string, tail string) (<-chan string, error)
-}
 
-type ServiceManager interface {
-	GetService(name string) (Service, error)
+	IsDisabled() bool
+	SetDisabled(value bool)
+	GetContainerId() string
 }
