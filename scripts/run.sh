@@ -2,9 +2,7 @@
 
 set -euo pipefail
 
-SCRIPTS=$(dirname "$0")
 NETWORK=${1:-testnet}
-
 
 if [[ $(uname) == "Darwin" ]]; then
   NETWORK_DIR="$HOME/Library/Application Support/XudDocker/$NETWORK"
@@ -16,12 +14,9 @@ PROXY_DIR="$DATA_DIR/proxy"
 
 echo "PROXY_DIR=$PROXY_DIR"
 
-SERVICES_JSON="$(base64 -i "$SCRIPTS/${NETWORK}.json")"
-
 docker build . -t proxy
 docker run -it --rm --name proxy \
 -e "NETWORK=$NETWORK" \
--e "SERVICES=$SERVICES_JSON" \
 --net "${NETWORK}_default" \
 -p 8080:8080 \
 -v /var/run/docker.sock:/var/run/docker.sock \
