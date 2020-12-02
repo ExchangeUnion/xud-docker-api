@@ -61,8 +61,6 @@ func initServices(network string, dockerClient *docker.Client, listeners map[str
 		panic(err)
 	}
 
-	j := config["services"].([]map[string]interface{})
-
 	var result []core.Service
 	var resultMap = make(map[string]core.Service)
 	var s core.Service
@@ -72,7 +70,9 @@ func initServices(network string, dockerClient *docker.Client, listeners map[str
 	var disabled bool
 	var mode string
 
-	for _, x := range j {
+	for _, item := range config["service"].([]interface{}) {
+		x := item.(map[string]interface{})
+
 		name = x["name"].(string)
 		cName = containerName(network, name)
 		rpc = x["rpc"].(map[string]interface{})
