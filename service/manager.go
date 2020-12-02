@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,8 +18,7 @@ import (
 	"github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
-	"os"
-	"strings"
+	"io/ioutil"
 )
 
 var (
@@ -51,23 +49,19 @@ func containerName(network string, service string) string {
 }
 
 func initServices(network string, dockerClient *docker.Client, listeners map[string]core.Listener) []core.Service {
-	str := os.Getenv("SERVICES")
-	str = strings.TrimSpace(str)
-	if str == "" {
-		panic(errors.New("the environment variable \"SERVICES\" is required"))
-	}
 
-	// decode base64 string
-	d, err := base64.StdEncoding.DecodeString(str)
-	if err != nil {
-		panic(errors.New("invalid base64 value of \"SERVICES\""))
-	}
-
-	var j []map[string]interface{}
-	err = json.Unmarshal([]byte(d), &j)
+	f, err := ioutil.ReadFile("/root/network/data/config.sh")
 	if err != nil {
 		panic(err)
 	}
+
+	var config map[string]interface{}
+	err = json.Unmarshal(f, &config)
+	if err != nil {
+		panic(err)
+	}
+
+	j := config["services"].([]map[string]interface{})
 
 	var result []core.Service
 	var resultMap = make(map[string]core.Service)
