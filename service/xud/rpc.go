@@ -13,9 +13,10 @@ import (
 )
 
 type RpcClient struct {
-	cond   *sync.Cond
-	client xudrpc.XudClient
-	conn  *grpc.ClientConn
+	cond       *sync.Cond
+	client     xudrpc.XudClient
+	initClient xudrpc.XudInitClient
+	conn       *grpc.ClientConn
 }
 
 func NewRpcClient(config config.RpcConfig) *RpcClient {
@@ -58,11 +59,17 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string) {
 
 		t.cond.L.Lock()
 		t.client = pb.NewXudClient(conn)
+		t.initClient = pb.NewXudInitClient(conn)
 		t.cond.Broadcast()
 		t.cond.L.Unlock()
 
 		break
 	}
+}
+
+func (t *RpcClient) Close() error {
+	_ = t.conn.Close()
+	return nil
 }
 
 func (t *RpcClient) GetInfo() (*pb.GetInfoResponse, error) {
@@ -118,9 +125,42 @@ func (t *RpcClient) GetTradingLimits(currency string) (*pb.TradingLimitsResponse
 	return t.client.TradingLimits(context.Background(), &req)
 }
 
-func (t *RpcClient) Close() error {
-	_ = t.conn.Close()
-	return nil
+func (t *RpcClient) CreateNode(password string) (*pb.CreateNodeResponse, error) {
+	t.cond.L.Lock()
+	for t.initClient == nil {
+		t.cond.Wait()
+	}
+	defer t.cond.L.Unlock()
+
+	req := pb.CreateNodeRequest{Password: password}
+	return t.initClient.CreateNode(context.Background(), &req)
 }
 
+func (t *RpcClient) RestoreNode(password string, seedMnemonic []string, lndBackups map[string][]byte, xudDatabase []byte) (*pb.RestoreNodeResponse, error) {
+	t.cond.L.Lock()
+	for t.initClient == nil {
+		t.cond.Wait()
+	}
+	defer t.cond.L.Unlock()
 
+	req := pb.RestoreNodeRequest{
+		Password:     password,
+		SeedMnemonic: seedMnemonic,
+		LndBackups:   lndBackups,
+		XudDatabase:  xudDatabase,
+	}
+	return t.initClient.RestoreNode(context.Background(), &req)
+}
+
+func (t *RpcClient) UnlockNode(password string) (*pb.UnlockNodeResponse, error) {
+	t.cond.L.Lock()
+	for t.initClient == nil {
+		t.cond.Wait()
+	}
+	defer t.cond.L.Unlock()
+
+	req := pb.UnlockNodeRequest{
+		Password: password,
+	}
+	return t.initClient.UnlockNode(context.Background(), &req)
+}
