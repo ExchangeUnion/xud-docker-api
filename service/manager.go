@@ -70,7 +70,7 @@ func initServices(network string, dockerClient *docker.Client, listeners map[str
 	var disabled bool
 	var mode string
 
-	for _, item := range config["service"].([]interface{}) {
+	for _, item := range config["services"].([]interface{}) {
 		x := item.(map[string]interface{})
 
 		name = x["name"].(string)
