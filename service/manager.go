@@ -50,7 +50,7 @@ func containerName(network string, service string) string {
 
 func initServices(network string, dockerClient *docker.Client, listeners map[string]core.Listener) []core.Service {
 
-	f, err := ioutil.ReadFile("/root/network/data/config.sh")
+	f, err := ioutil.ReadFile("/root/network/data/config.json")
 	if err != nil {
 		panic(err)
 	}
