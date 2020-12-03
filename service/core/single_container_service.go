@@ -11,6 +11,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 )
 
 type SingleContainerService struct {
@@ -20,7 +21,7 @@ type SingleContainerService struct {
 	dockerClient  *docker.Client
 	mutex         *sync.Mutex
 	container     *types.ContainerJSON
-	cond  *sync.Cond
+	cond          *sync.Cond
 }
 
 func NewSingleContainerService(
@@ -38,7 +39,7 @@ func NewSingleContainerService(
 		dockerClient:    dockerClient,
 		mutex:           mutex,
 		container:       nil,
-		cond:    sync.NewCond(mutex),
+		cond:            sync.NewCond(mutex),
 	}
 
 	go s.initContainer()
@@ -86,66 +87,105 @@ func (t *SingleContainerService) GetContainerId() string {
 	return c.ID
 }
 
-func (t *SingleContainerService) getLogs(since string, tail string, follow bool) (<-chan string, error) {
+func (t *SingleContainerService) demuxLogsReader(reader io.Reader) io.Reader {
+	r, w := io.Pipe()
+	go func() {
+		_, err := stdcopy.StdCopy(w, w, reader)
+		w.Close()
+		if err != nil {
+			t.logger.Debugf("Failed to StdCopy: %s", err)
+		}
+	}()
+
+	return r
+}
+
+func (t *SingleContainerService) GetLogs(since string, tail string) ([]string, error) {
 	reader, err := t.dockerClient.ContainerLogs(context.Background(), t.containerName, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Since:      since,
 		Tail:       tail,
-		Follow:     follow,
+		Follow:     false,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
+	var lines []string
+
+	r := t.demuxLogsReader(reader)
+
+	bufReader := bufio.NewReader(r)
+	for {
+		line, _, err := bufReader.ReadLine()
+		if err != nil {
+			break
+		}
+		lines = append(lines, string(line))
+	}
+
+	return lines, nil
+}
+
+func (t *SingleContainerService) FollowLogs(since string, tail string) (<-chan string, func(), error) {
+	reader, err := t.dockerClient.ContainerLogs(context.Background(), t.containerName, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Since:      since,
+		Tail:       tail,
+		Follow:     true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r := t.demuxLogsReader(reader)
+
 	ch := make(chan string)
-
-	r, w := io.Pipe()
-
-	go func() {
-		_, err := stdcopy.StdCopy(w, w, reader)
-		if err != nil {
-			t.logger.Errorf("StdCopy error: %v", err)
-		}
-		err = reader.Close()
-		if err != nil {
-			t.logger.Errorf("Failed to close reader: %v", err)
-		}
-		err = w.Close()
-		if err != nil {
-			t.logger.Errorf("Failed to close pipe writer: %v", err)
-		}
-	}()
 
 	go func() {
 		bufReader := bufio.NewReader(r)
-
 		for {
 			line, _, err := bufReader.ReadLine()
 			if err != nil {
+				t.logger.Debugf("Failed to read line: %s", err)
+				ch <- "--- EOF ---"
 				break
 			}
 			ch <- string(line)
 		}
-
-		err = reader.Close()
-		if err != nil {
-			ch <- "Error: " + err.Error()
-		}
-
 		close(ch)
 	}()
 
-	return ch, nil
+	return ch, func() { reader.Close() }, nil
 }
 
-func (t *SingleContainerService) GetLogs(since string, tail string) (<-chan string, error) {
-	return t.getLogs(since, tail, false)
-}
+func (t *SingleContainerService) FollowLogs2() (<-chan string, func(), error) {
+	ch := make(chan string)
+	var running = true
 
-func (t *SingleContainerService) FollowLogs(since string, tail string) (<-chan string, error) {
-	return t.getLogs(since, tail, true)
+	go func() {
+		c := t.WaitContainer()
+		startedAt := c.State.StartedAt
+		for running {
+			lines, stop, err := t.FollowLogs(startedAt, "")
+			if err != nil {
+				t.logger.Error("Failed to follow logs: %s (will retry in 3 seconds)", err)
+				time.Sleep(3 * time.Second)
+			}
+			for line := range lines {
+				if !running {
+					break
+				}
+				ch <- line
+			}
+			stop()
+		}
+		close(ch)
+	}()
+
+	return ch, func() { running = false }, nil
 }
 
 func (t *SingleContainerService) Getenv(key string) (string, error) {
@@ -277,28 +317,28 @@ func (t *SingleContainerService) OnEvent(type_ string) {
 	var c *types.ContainerJSON
 	switch type_ {
 	case "create":
-		t.logger.Debugf("[Event] %s: Container %s created", t.name, t.containerName)
+		t.logger.Debugf("[Event] Container %s created", t.containerName)
 		c, err = t.getContainer()
 		if err != nil {
 			t.logger.Error("Failed to get container while CREATE event received: %s", err)
 		}
 		t.setContainer(c)
 	case "start":
-		t.logger.Debugf("[Event] %s: Container %s started", t.name, t.containerName)
+		t.logger.Debugf("[Event] Container %s started", t.containerName)
 		c, err = t.getContainer()
 		if err != nil {
 			t.logger.Error("Failed to get container while START event received: %s", err)
 		}
 		t.setContainer(c)
 	case "die":
-		t.logger.Debugf("[Event] %s: Container %s died", t.name, t.containerName)
+		t.logger.Debugf("[Event] Container %s died", t.containerName)
 		c, err = t.getContainer()
 		if err != nil {
 			t.logger.Error("Failed to get container while DIE event received: %s", err)
 		}
 		t.setContainer(c)
 	case "destroy":
-		t.logger.Debugf("[Event] %s: Container %s destroyed", t.name, t.containerName)
+		t.logger.Debugf("[Event] Container %s destroyed", t.containerName)
 		t.setContainer(nil)
 	}
 }

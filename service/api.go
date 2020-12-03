@@ -76,7 +76,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 			}
 			c.Header("Content-Type", "text/plain")
 			c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.log\"", service))
-			for line := range logs {
+			for _, line := range logs {
 				_, err = c.Writer.WriteString(line + "\n")
 				if err != nil {
 					utils.JsonError(c, err.Error(), http.StatusInternalServerError)

@@ -16,7 +16,8 @@ type Service interface {
 	GetName() string
 	GetStatus() (string, error)
 	ConfigureRouter(r *gin.RouterGroup)
-	GetLogs(since string, tail string) (<-chan string, error)
+	GetLogs(since string, tail string) ([]string, error)
+	FollowLogs(since string, tail string) (<-chan string, func(), error)
 
 	IsDisabled() bool
 	SetDisabled(value bool)

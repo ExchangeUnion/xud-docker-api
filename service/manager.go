@@ -239,27 +239,23 @@ ListenLoop:
 				switch event.Action {
 				case "create":
 					name = t.id2name(event.ID)
-					t.logger.Debugf("[Event] Container create: %s", name)
 					s, ok := t.listeners[name]
 					if ok {
 						s.OnEvent("create")
 					}
 				case "start":
 					name = t.id2name(event.ID)
-					t.logger.Debugf("[Event] Container start: %s", name)
 					s, ok := t.listeners[name]
 					if ok {
 						s.OnEvent("start")
 					}
 				case "die":
 					name = t.id2name(event.ID)
-					t.logger.Debugf("[Event] Container die: %s", name)
 					s, ok := t.listeners[name]
 					if ok {
 						s.OnEvent("die")
 					}
 				case "destroy":
-					t.logger.Debugf("[Event] Container destroy: %s", event.ID)
 					for _, s := range t.services {
 						if s.GetContainerId() == event.ID {
 							s.OnEvent("die")

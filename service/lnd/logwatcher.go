@@ -24,6 +24,7 @@ type LogWatcher struct {
 	neutrinoSyncing NeutrinoSyncing
 	logger          *logrus.Entry
 	service         *core.SingleContainerService
+	stop            func()
 }
 
 func initRegex(containerName string) (*regexp.Regexp, *regexp.Regexp, *regexp.Regexp, *regexp.Regexp) {
@@ -74,24 +75,21 @@ func NewLogWatcher(containerName string, logger *logrus.Entry, service *core.Sin
 }
 
 func (t *LogWatcher) getLogs() <-chan string {
-	// waiting for container to be created
-	c := t.service.WaitContainer()
-	t.logger.Debug("Got container")
-
-	startedAt := c.State.StartedAt
-	t.logger.Debugf("startedAt=%s", startedAt)
 	for {
-		logs, err := t.service.FollowLogs(startedAt, "")
+		lines, stop, err := t.service.FollowLogs2()
+		t.stop = stop
 		if err != nil {
 			t.logger.Error("Failed to follow logs: %s (will retry in 3 seconds)", err)
 			time.Sleep(3 * time.Second)
 		}
-		return logs
+		return lines
 	}
 }
 
 func (t *LogWatcher) stopFollowing() {
-
+	if t.stop != nil {
+		t.stop()
+	}
 }
 
 func (t *LogWatcher) getNumber(p *regexp.Regexp, line string) int64 {
@@ -115,16 +113,24 @@ func (t *LogWatcher) Start() {
 		if t.p0.MatchString(line) {
 			t.logger.Debugf("*** %s", line)
 			t.neutrinoSyncing.current = t.getNumber(t.p0, line)
+			if t.neutrinoSyncing.current < t.neutrinoSyncing.total {
+				t.neutrinoSyncing.current = t.neutrinoSyncing.total
+			} else if t.neutrinoSyncing.current > t.neutrinoSyncing.total {
+				t.neutrinoSyncing.total = t.neutrinoSyncing.current
+			}
 			t.neutrinoSyncing.done = true
-			break
 		} else if t.p1.MatchString(line) {
 			t.logger.Debugf("*** %s", line)
 			t.neutrinoSyncing.current = t.getNumber(t.p1, line)
 		} else if t.p2.MatchString(line) {
 			t.logger.Debugf("*** %s", line)
 			t.neutrinoSyncing.total = t.getNumber(t.p2, line)
+		} else if line == "--- EOF ---" {
+			t.logger.Debugf("Reset Neutrino syncing state")
+			t.neutrinoSyncing.current = 0
+			t.neutrinoSyncing.total = 0
+			t.neutrinoSyncing.done = false
 		}
-
 	}
 
 	t.stopFollowing()
@@ -140,7 +146,7 @@ func (t *LogWatcher) GetNeutrinoStatus() string {
 }
 
 func (t *LogWatcher) Stop() {
-	panic("implement me!")
+	t.stopFollowing()
 }
 
 func (t *LogWatcher) getCurrentHeight() (uint32, error) {
@@ -151,7 +157,7 @@ func (t *LogWatcher) getCurrentHeight() (uint32, error) {
 
 	var height string
 
-	for line := range logs {
+	for _, line := range logs {
 		if t.p.MatchString(line) {
 			height = t.p.ReplaceAllString(line, "$1")
 		}

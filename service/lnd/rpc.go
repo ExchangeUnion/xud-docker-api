@@ -13,10 +13,14 @@ import (
 	"time"
 )
 
+const (
+	RPC_RETRY_DELAY = 30 * time.Second
+)
+
 type RpcClient struct {
-	mutex   *sync.Mutex
+	mutex  *sync.Mutex
 	client pb.LightningClient
-	conn *grpc.ClientConn
+	conn   *grpc.ClientConn
 	logger *logrus.Entry
 }
 
@@ -27,7 +31,7 @@ func NewRpcClient(config config.RpcConfig, logger *logrus.Entry) *RpcClient {
 	macaroon := config["macaroon"].(string)
 
 	c := &RpcClient{
-		mutex:   &sync.Mutex{},
+		mutex:  &sync.Mutex{},
 		client: nil,
 		logger: logger,
 	}
@@ -41,8 +45,8 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 	for {
 		creds, err := credentials.NewClientTLSFromFile(tlsCert, "localhost")
 		if err != nil {
-			t.logger.Warnf("Failed to create gRPC TLS credentials: %s (will retry in 3 seconds)", err)
-			time.Sleep(3 * time.Second)
+			t.logger.Warnf("Failed to create gRPC TLS credentials: %s", err)
+			time.Sleep(RPC_RETRY_DELAY)
 			continue
 		}
 
@@ -56,8 +60,8 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 		ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
 		if err != nil {
-			t.logger.Warnf("Failed to create gRPC connection: %s (will retry in 3 seconds)", err)
-			time.Sleep(3 * time.Second)
+			t.logger.Warnf("Failed to create gRPC connection: %s", err)
+			time.Sleep(RPC_RETRY_DELAY)
 			continue
 		}
 

@@ -46,14 +46,6 @@ func (t *AbstractService) ConfigureRouter(r *gin.RouterGroup) {
 func (t *AbstractService) Close() {
 }
 
-func (t *AbstractService) GetLogs(since string, tail string) (<-chan string, error) {
-	ch := make(chan string)
-	go func() {
-		close(ch)
-	}()
-	return ch, nil
-}
-
 func (t *AbstractService) GetLogger() *logrus.Entry {
 	return t.logger
 }
