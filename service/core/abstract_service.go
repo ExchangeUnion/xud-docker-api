@@ -8,15 +8,20 @@ import (
 type AbstractService struct {
 	name     string
 	services map[string]Service
-	logger   *logrus.Logger
+	logger   *logrus.Entry
 
 	disabled bool
 	mode     string
 }
 
 func NewAbstractService(name string, services map[string]Service) *AbstractService {
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: false,
+	})
+
+	logger := log.WithField("service", name)
 
 	return &AbstractService{
 		name:     name,
@@ -49,7 +54,7 @@ func (t *AbstractService) GetLogs(since string, tail string) (<-chan string, err
 	return ch, nil
 }
 
-func (t *AbstractService) GetLogger() *logrus.Logger {
+func (t *AbstractService) GetLogger() *logrus.Entry {
 	return t.logger
 }
 

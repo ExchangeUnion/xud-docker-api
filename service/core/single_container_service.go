@@ -1,11 +1,13 @@
 package core
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
-	"github.com/sirupsen/logrus"
+	"github.com/docker/docker/pkg/stdcopy"
 	"io"
 	"strings"
 	"sync"
@@ -16,21 +18,9 @@ type SingleContainerService struct {
 
 	containerName string
 	dockerClient  *docker.Client
-	container     *Container
 	mutex         *sync.Mutex
-}
-
-func inspectContainer(client *docker.Client, name string, logger *logrus.Logger) (*Container, error) {
-	ctx := context.Background()
-	c, err := client.ContainerInspect(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-	return &Container{
-		c:      &c,
-		client: client,
-		logger: logger,
-	}, nil
+	container     *types.ContainerJSON
+	cond  *sync.Cond
 }
 
 func NewSingleContainerService(
@@ -40,35 +30,35 @@ func NewSingleContainerService(
 	dockerClient *docker.Client,
 ) *SingleContainerService {
 
-	a := NewAbstractService(name, services)
-
-	c, err := inspectContainer(dockerClient, containerName, a.logger)
-	if err != nil {
-		c = nil
-	}
+	mutex := &sync.Mutex{}
 
 	s := &SingleContainerService{
-		AbstractService: a,
+		AbstractService: NewAbstractService(name, services),
 		containerName:   containerName,
 		dockerClient:    dockerClient,
-		container:       c,
-		mutex:           &sync.Mutex{},
+		mutex:           mutex,
+		container:       nil,
+		cond:    sync.NewCond(mutex),
 	}
+
+	go s.initContainer()
 
 	return s
 }
 
-func (t *SingleContainerService) GetContainer() *Container {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	return t.container
+func (t *SingleContainerService) getContainer() (*types.ContainerJSON, error) {
+	c, err := t.dockerClient.ContainerInspect(context.Background(), t.containerName)
+	if err != nil {
+		return nil, err
+	}
+	return &c, err
 }
 
 // GetStatus implements Service interface
 func (t *SingleContainerService) GetStatus() (string, error) {
 	status, err := t.GetContainerStatus()
 	if err != nil {
-		if strings.Contains(err.Error(), "container not found") {
+		if strings.Contains(err.Error(), "No such container") {
 			if t.IsDisabled() && (t.GetMode() == "" || t.GetMode() == "native") {
 				return "Disabled", nil
 			}
@@ -79,95 +69,236 @@ func (t *SingleContainerService) GetStatus() (string, error) {
 	return fmt.Sprintf("Container %s", status), nil
 }
 
-// GetContainerStatus is a shortcut function
 func (t *SingleContainerService) GetContainerStatus() (string, error) {
-	c := t.GetContainer()
-	if c == nil {
-		return "", errors.New("container not found: " + t.containerName)
+	c, err := t.getContainer()
+	if err != nil {
+		return "", err
 	}
-	return c.GetStatus(), nil
+	return c.State.Status, nil
 }
 
-// GetLogs is a shortcut function
+func (t *SingleContainerService) GetContainerId() string {
+	c, err := t.getContainer()
+	if err != nil {
+		t.logger.Debugf("Failed to get container %s ID: %s", t.containerName, err)
+		return ""
+	}
+	return c.ID
+}
+
+func (t *SingleContainerService) getLogs(since string, tail string, follow bool) (<-chan string, error) {
+	reader, err := t.dockerClient.ContainerLogs(context.Background(), t.containerName, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Since:      since,
+		Tail:       tail,
+		Follow:     follow,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan string)
+
+	r, w := io.Pipe()
+
+	go func() {
+		_, err := stdcopy.StdCopy(w, w, reader)
+		if err != nil {
+			t.logger.Errorf("StdCopy error: %v", err)
+		}
+		err = reader.Close()
+		if err != nil {
+			t.logger.Errorf("Failed to close reader: %v", err)
+		}
+		err = w.Close()
+		if err != nil {
+			t.logger.Errorf("Failed to close pipe writer: %v", err)
+		}
+	}()
+
+	go func() {
+		bufReader := bufio.NewReader(r)
+
+		for {
+			line, _, err := bufReader.ReadLine()
+			if err != nil {
+				break
+			}
+			ch <- string(line)
+		}
+
+		err = reader.Close()
+		if err != nil {
+			ch <- "Error: " + err.Error()
+		}
+
+		close(ch)
+	}()
+
+	return ch, nil
+}
+
 func (t *SingleContainerService) GetLogs(since string, tail string) (<-chan string, error) {
-	c := t.GetContainer()
-	if c == nil {
-		return nil, errors.New("container not found: " + t.containerName)
-	}
-	return c.GetLogs(since, tail, false)
+	return t.getLogs(since, tail, false)
 }
 
-// FollowLogs is a shortcut function
 func (t *SingleContainerService) FollowLogs(since string, tail string) (<-chan string, error) {
-	c := t.GetContainer()
-	if c == nil {
-		return nil, errors.New("container not found: " + t.containerName)
-	}
-	return c.GetLogs(since, tail, true)
+	return t.getLogs(since, tail, true)
 }
 
-// Getenv is a shortcut function
 func (t *SingleContainerService) Getenv(key string) (string, error) {
-	c := t.GetContainer()
-	if c == nil {
-		return "", errors.New("container not found: " + t.containerName)
+	c, err := t.getContainer()
+	if err != nil {
+		return "", err
 	}
-	return c.Getenv(key), nil
+	prefix := key + "="
+	for _, env := range c.Config.Env {
+		if strings.HasPrefix(env, prefix) {
+			value := strings.Replace(env, prefix, "", 1)
+			return value, nil
+		}
+	}
+	return "", errors.New("no such key: " + key)
 }
 
-// Exec1 is a shortcut function
 func (t *SingleContainerService) Exec1(command []string) (string, error) {
-	c := t.GetContainer()
-	if c == nil {
-		return "", errors.New("container not found: " + t.containerName)
+	ctx := context.Background()
+	createResp, err := t.dockerClient.ContainerExecCreate(ctx, t.containerName, types.ExecConfig{
+		Cmd:          command,
+		Tty:          false,
+		AttachStdin:  false,
+		AttachStdout: true,
+		AttachStderr: true,
+	})
+	if err != nil {
+		return "", err
 	}
-	return c.Exec(command)
+
+	execId := createResp.ID
+
+	// ContainerExecAttach = ContainerExecStart
+	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecConfig{
+		AttachStdout: true,
+		AttachStderr: true,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	output := new(strings.Builder)
+	_, err = stdcopy.StdCopy(output, output, attachResp.Reader)
+	if err != nil {
+		return "", err
+	}
+
+	inspectResp, err := t.dockerClient.ContainerExecInspect(ctx, execId)
+	if err != nil {
+		return "", err
+	}
+
+	exitCode := inspectResp.ExitCode
+
+	if exitCode != 0 {
+		return output.String(), errors.New("non-zero exit code")
+	}
+
+	return output.String(), nil
 }
 
 // Exec1 is a shortcut function
 func (t *SingleContainerService) ExecInteractive(command []string) (string, io.Reader, io.Writer, error) {
-	c := t.GetContainer()
-	if c == nil {
-		return "", nil, nil, errors.New("container not found: " + t.containerName)
+	ctx := context.Background()
+	createResp, err := t.dockerClient.ContainerExecCreate(ctx, t.containerName, types.ExecConfig{
+		Cmd:          command,
+		Tty:          true,
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+	})
+	if err != nil {
+		return "", nil, nil, err
 	}
-	return c.ExecInteractive(command)
+
+	execId := createResp.ID
+
+	t.logger.Infof("Created exec: %v", execId)
+
+	// ContainerExecAttach = ContainerExecStart
+	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecConfig{})
+	if err != nil {
+		return execId, nil, nil, err
+	}
+
+	t.logger.Infof("Attached %v", attachResp)
+
+	r, w := io.Pipe()
+
+	go func() {
+		_, err = stdcopy.StdCopy(w, w, attachResp.Reader)
+		if err != nil {
+			t.logger.Errorf("StdCopy failed: %v", err)
+		}
+		attachResp.Close()
+	}()
+
+	return execId, r, attachResp.Conn, nil
+}
+
+func (t *SingleContainerService) initContainer() {
+	c, err := t.getContainer()
+	if err != nil {
+		t.logger.Debugf("Failed to get container %s while initializing", t.containerName)
+	}
+	t.setContainer(c)
+}
+
+func (t *SingleContainerService) setContainer(c *types.ContainerJSON) {
+	t.cond.L.Lock()
+	t.container = c
+	if c != nil {
+		t.cond.Broadcast()
+	}
+	t.cond.L.Unlock()
+}
+
+func (t *SingleContainerService) WaitContainer() *types.ContainerJSON {
+	t.cond.L.Lock()
+	defer t.cond.L.Unlock()
+	for t.container == nil {
+		t.cond.Wait()
+	}
+	return t.container
 }
 
 func (t *SingleContainerService) OnEvent(type_ string) {
 	var err error
+	var c *types.ContainerJSON
 	switch type_ {
 	case "create":
-		t.mutex.Lock()
-		t.container, err = inspectContainer(t.dockerClient, t.containerName, t.logger)
+		t.logger.Debugf("[Event] %s: Container %s created", t.name, t.containerName)
+		c, err = t.getContainer()
 		if err != nil {
 			t.logger.Error("Failed to get container while CREATE event received: %s", err)
 		}
-		t.mutex.Unlock()
+		t.setContainer(c)
 	case "start":
-		t.mutex.Lock()
-		t.container, err = inspectContainer(t.dockerClient, t.containerName, t.logger)
+		t.logger.Debugf("[Event] %s: Container %s started", t.name, t.containerName)
+		c, err = t.getContainer()
 		if err != nil {
 			t.logger.Error("Failed to get container while START event received: %s", err)
 		}
-		t.mutex.Unlock()
+		t.setContainer(c)
 	case "die":
-		t.mutex.Lock()
-		t.container, err = inspectContainer(t.dockerClient, t.containerName, t.logger)
+		t.logger.Debugf("[Event] %s: Container %s died", t.name, t.containerName)
+		c, err = t.getContainer()
 		if err != nil {
 			t.logger.Error("Failed to get container while DIE event received: %s", err)
 		}
-		t.mutex.Unlock()
+		t.setContainer(c)
 	case "destroy":
-		t.mutex.Lock()
-		t.container = nil
-		t.mutex.Unlock()
+		t.logger.Debugf("[Event] %s: Container %s destroyed", t.name, t.containerName)
+		t.setContainer(nil)
 	}
-}
-
-func (t *SingleContainerService) GetContainerId() string {
-	c := t.GetContainer()
-	if c == nil {
-		return ""
-	}
-	return c.Unwrap().ID
 }
