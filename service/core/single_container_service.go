@@ -59,6 +59,7 @@ func (t *SingleContainerService) getContainer() (*types.ContainerJSON, error) {
 func (t *SingleContainerService) GetStatus() (string, error) {
 	status, err := t.GetContainerStatus()
 	if err != nil {
+		t.logger.Debugf("Failed to get container status: %s", err)
 		if strings.Contains(err.Error(), "No such container") {
 			if t.IsDisabled() && (t.GetMode() == "" || t.GetMode() == "native") {
 				return "Disabled", nil
