@@ -4,6 +4,7 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api-poc/config"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
 	docker "github.com/docker/docker/client"
+	"os"
 	"strings"
 )
 
@@ -40,6 +41,9 @@ func (t *Service) GetStatus() (string, error) {
 		resp, err := t.GetInfo()
 		if err != nil {
 			if strings.Contains(err.Error(), "xud is locked") {
+				if _, err := os.Stat("/root/network/data/xud/nodekey.dat"); os.IsNotExist(err) {
+					return "Wallet missing. Create with xucli create/restore.", nil
+				}
 				return "Wallet locked. Unlock with xucli unlock.", nil
 			} else if strings.Contains(err.Error(), "no such file or directory, open '/root/.xud/tls.cert'") {
 				return "Starting...", nil
