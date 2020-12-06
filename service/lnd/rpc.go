@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"os"
 	"sync"
 	"time"
 )
@@ -55,15 +56,23 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 		opts = append(opts, grpc.WithBlock())
 
+		if _, err := os.Stat(macaroon); os.IsNotExist(err) {
+			t.logger.Warnf("Waiting for %s", macaroon)
+			time.Sleep(RPC_RETRY_DELAY)
+			continue
+		}
+
 		opts = append(opts, grpc.WithPerRPCCredentials(&MacaroonCredential{Readonly: macaroon}))
 
-		ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
 		if err != nil {
+			cancel() // prevent context resource leak
 			t.logger.Warnf("Failed to create gRPC connection: %s", err)
 			time.Sleep(RPC_RETRY_DELAY)
 			continue
 		}
+		cancel() // prevent context resource leak
 
 		t.logger.Debugf("Created gRPC connection")
 		t.conn = conn

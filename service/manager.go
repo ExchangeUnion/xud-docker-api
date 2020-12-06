@@ -172,8 +172,6 @@ func (t *Manager) GetStatus() map[string]string {
 		}()
 	}
 
-	t.logger.Debugf("Services count: %d %v %d", cap(t.services), t.services, len(t.services))
-
 	for i := 0; i < len(t.services); i++ {
 		r := <-ch
 		result[r.Service] = r.Status
