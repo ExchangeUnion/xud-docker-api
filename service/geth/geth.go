@@ -3,17 +3,18 @@ package geth
 import (
 	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api-poc/config"
 	"github.com/ExchangeUnion/xud-docker-api-poc/service/connext"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	docker "github.com/docker/docker/client"
 	"github.com/ybbus/jsonrpc"
-	"strconv"
 	"strings"
 )
 
-type GethService struct {
-	*service.SingleContainerService
-	rpcOptions     *service.RpcOptions
-	rpcClient      jsonrpc.RPCClient
+type Service struct {
+	*core.SingleContainerService
+	*RpcClient
+
 	l2ServiceName  string
 	lightProviders []string
 }
@@ -28,127 +29,24 @@ const (
 	Unknown  Mode = "unknown"
 )
 
-func New(name string, containerName string, l2ServiceName string, lightProviders []string) *GethService {
-	return &GethService{
-		SingleContainerService: service.NewSingleContainerService(name, containerName),
+func New(
+	name string,
+	services map[string]core.Service,
+	containerName string,
+	dockerClient *docker.Client,
+	l2ServiceName string,
+	lightProviders []string,
+	rpcConfig config.RpcConfig,
+) *Service {
+	return &Service{
+		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
+		RpcClient:              NewRpcClient(rpcConfig),
 		l2ServiceName:          l2ServiceName,
 		lightProviders:         lightProviders,
 	}
 }
 
-func (t *GethService) ConfigureRpc(options *service.RpcOptions) {
-	t.rpcOptions = options
-}
-
-func (t *GethService) getRpcClient() jsonrpc.RPCClient {
-	if t.rpcClient == nil {
-		addr := fmt.Sprintf("http://%s:%d", t.rpcOptions.Host, t.rpcOptions.Port)
-		t.rpcClient = jsonrpc.NewClientWithOpts(addr, &jsonrpc.RPCClientOpts{})
-	}
-	return t.rpcClient
-}
-
-type Syncing struct {
-	CurrentBlock  int64
-	HighestBlock  int64
-	KnownStates   int64
-	PulledStates  int64
-	StartingBlock int64
-}
-
-func parseHex(value string) (int64, error) {
-	value = strings.Replace(value, "0x", "", 1)
-	i64, err := strconv.ParseInt(value, 16, 32)
-	if err != nil {
-		return 0, err
-	}
-	return i64, nil
-}
-
-func (t *GethService) EthSyncing() (*Syncing, error) {
-	result, err := t.getRpcClient().Call("eth_syncing")
-	if err != nil {
-		return nil, err
-	}
-
-	var syncing map[string]string
-	err = result.GetObject(&syncing)
-	if err != nil {
-		_, err := result.GetBool()
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
-
-	currentBlock, err := parseHex(syncing["currentBlock"])
-	if err != nil {
-		return nil, err
-	}
-
-	highestBlock, err := parseHex(syncing["highestBlock"])
-	if err != nil {
-		return nil, err
-	}
-
-	knownStates, err := parseHex(syncing["knownStates"])
-	if err != nil {
-		return nil, err
-	}
-
-	pulledStates, err := parseHex(syncing["pulledStates"])
-	if err != nil {
-		return nil, err
-	}
-
-	startingBlock, err := parseHex(syncing["startingBlock"])
-	if err != nil {
-		return nil, err
-	}
-
-	return &Syncing{
-		CurrentBlock:  currentBlock,
-		HighestBlock:  highestBlock,
-		KnownStates:   knownStates,
-		PulledStates:  pulledStates,
-		StartingBlock: startingBlock,
-	}, nil
-}
-
-func (t *GethService) EthBlockNumber() (int64, error) {
-	result, err := t.getRpcClient().Call("eth_blockNumber")
-	if err != nil {
-		return 0, err
-	}
-	s, err := result.GetString()
-	if err != nil {
-		return 0, err
-	}
-	blockNumber, err := parseHex(s)
-	if err != nil {
-		return 0, err
-	}
-	return blockNumber, nil
-}
-
-func explainNetVersion(version string) string {
-	switch version {
-	case "1":
-		return "Mainnet"
-	case "2":
-		return "Testnet (Morden, deprecated!)"
-	case "3":
-		return "Testnet (Ropsten)"
-	case "4":
-		return "Testnet (Rinkeby)"
-	case "42":
-		return "Testnet (Kovan)"
-	default:
-		return version
-	}
-}
-
-func (t *GethService) checkEthRpc(url string) bool {
+func (t *Service) checkEthRpc(url string) bool {
 	client := jsonrpc.NewClientWithOpts(url, &jsonrpc.RPCClientOpts{})
 	result, err := client.Call("net_version")
 	if err != nil {
@@ -162,19 +60,16 @@ func (t *GethService) checkEthRpc(url string) bool {
 	return true
 }
 
-func (t *GethService) getL2Service() (*connext.ConnextService, error) {
-	s, err := t.GetServiceManager().GetService(t.l2ServiceName)
-	if err != nil {
-		return nil, err
-	}
-	connextSvc, ok := s.(*connext.ConnextService)
+func (t *Service) getL2Service() (*connext.Service, error) {
+	s := t.GetService(t.l2ServiceName)
+	connextSvc, ok := s.(*connext.Service)
 	if !ok {
 		return nil, errors.New("cannot convert to ConnextService")
 	}
 	return connextSvc, nil
 }
 
-func (t *GethService) isLightProvider(provider string) bool {
+func (t *Service) isLightProvider(provider string) bool {
 	for _, item := range t.lightProviders {
 		if item == provider {
 			return true
@@ -183,7 +78,7 @@ func (t *GethService) isLightProvider(provider string) bool {
 	return false
 }
 
-func (t *GethService) getProvider() (string, error) {
+func (t *Service) getProvider() (string, error) {
 	connextSvc, err := t.getL2Service()
 	if err != nil {
 		return "", err
@@ -197,7 +92,7 @@ func (t *GethService) getProvider() (string, error) {
 	return provider, nil
 }
 
-func (t *GethService) getMode() (Mode, error) {
+func (t *Service) getMode() (Mode, error) {
 	provider, err := t.getProvider()
 	if err != nil {
 		return Unknown, err
@@ -214,7 +109,7 @@ func (t *GethService) getMode() (Mode, error) {
 	}
 }
 
-func (t *GethService) getExternalStatus() (string, error) {
+func (t *Service) getExternalStatus() (string, error) {
 	provider, err := t.getProvider()
 	if err != nil {
 		return "No provider", err
@@ -226,7 +121,7 @@ func (t *GethService) getExternalStatus() (string, error) {
 	}
 }
 
-func (t *GethService) getInfuraStatus() (string, error) {
+func (t *Service) getInfuraStatus() (string, error) {
 	provider, err := t.getProvider()
 	if err != nil {
 		return "No provider", err
@@ -238,7 +133,7 @@ func (t *GethService) getInfuraStatus() (string, error) {
 	}
 }
 
-func (t *GethService) getLightStatus() (string, error) {
+func (t *Service) getLightStatus() (string, error) {
 	provider, err := t.getProvider()
 	if err != nil {
 		return "No provider", err
@@ -250,7 +145,7 @@ func (t *GethService) getLightStatus() (string, error) {
 	}
 }
 
-func (t *GethService) GetStatus() (string, error) {
+func (t *Service) GetStatus() (string, error) {
 	mode, err := t.getMode()
 	if err != nil {
 		return "", err
@@ -293,3 +188,9 @@ func (t *GethService) GetStatus() (string, error) {
 		return status, nil
 	}
 }
+
+func (t *Service) Close() error {
+	_ = t.RpcClient.Close()
+	return nil
+}
+

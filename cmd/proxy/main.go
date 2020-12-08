@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ExchangeUnion/xud-docker-api-poc/service"
 	"github.com/docker/docker/pkg/homedir"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -15,8 +16,8 @@ import (
 )
 
 var (
-	logger = initLogger()
-	router = initRouter()
+	logger    = initLogger()
+	router    = initRouter()
 	sioServer *socketio.Server
 )
 
@@ -32,18 +33,16 @@ func initRouter() *gin.Engine {
 	return r
 }
 
-
 type Config struct {
 	Port int
 }
 
-
 func loadConfig() (*Config, error) {
-	logger.Info("Loading config")
+	logger.Debug("Loading config")
 
 	err := godotenv.Load("/root/config.sh")
 	if err != nil {
-		logger.Fatal("Failed to load /root/config.sh")
+		logger.Debug("Skip /root/config.sh")
 	}
 
 	var port int
@@ -71,7 +70,6 @@ func loadConfig() (*Config, error) {
 	return &config, nil
 }
 
-
 func setupCors(r gin.IRouter) {
 	// Configuring CORS
 	// - No origin allowed by default
@@ -84,9 +82,7 @@ func setupCors(r gin.IRouter) {
 	r.Use(cors.New(config))
 }
 
-
 func main() {
-
 
 	config, err := loadConfig()
 	if err != nil {
@@ -95,8 +91,8 @@ func main() {
 
 	network := os.Getenv("NETWORK")
 
-	logger.Info("Creating service manager")
-	manager, err := NewManager(network)
+	logger.Debug("Creating service manager")
+	manager, err := service.NewManager(network)
 	if err != nil {
 		logger.Fatalf("Failed to create service manager: %s", err)
 	}
@@ -118,7 +114,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("Creating router")
+	logger.Debug("Creating router")
 
 	r := router
 
@@ -132,7 +128,7 @@ func main() {
 		c.JSON(405, gin.H{"message": "method not allowed"})
 	})
 
-	logger.Info("Configuring router")
+	logger.Debug("Configuring router")
 	manager.ConfigureRouter(r)
 
 	logger.Infof("Serving at :%d", config.Port)
@@ -140,7 +136,6 @@ func main() {
 
 	certFile := path.Join(homedir.Get(), ".proxy", "tls.crt")
 	keyFile := path.Join(homedir.Get(), ".proxy", "tls.key")
-
 
 	err = http.ListenAndServeTLS(addr, certFile, keyFile, r)
 	//err = http.ListenAndServe(addr, r)

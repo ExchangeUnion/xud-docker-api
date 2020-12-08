@@ -1,25 +1,26 @@
 package webui
 
-import "github.com/ExchangeUnion/xud-docker-api-poc/service"
+import (
+	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	docker "github.com/docker/docker/client"
+)
 
-type WebuiService struct {
-	*service.SingleContainerService
-}
-
-func (t *WebuiService) GetName() string {
-	return "webui"
+type Service struct {
+	*core.SingleContainerService
 }
 
 func New(
 	name string,
+	services map[string]core.Service,
 	containerName string,
-) *WebuiService {
-	return &WebuiService{
-		SingleContainerService: service.NewSingleContainerService(name, containerName),
+	dockerClient *docker.Client,
+) *Service {
+	return &Service{
+		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
 	}
 }
 
-func (t *WebuiService) GetStatus() (string, error) {
+func (t *Service) GetStatus() (string, error) {
 	status, err := t.SingleContainerService.GetStatus()
 	if err != nil {
 		return "", err
@@ -29,4 +30,8 @@ func (t *WebuiService) GetStatus() (string, error) {
 	} else {
 		return status, nil
 	}
+}
+
+func (t *Service) Close() error {
+	return nil
 }
