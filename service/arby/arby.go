@@ -27,11 +27,13 @@ func New(
 
 func (t *Service) GetStatus(ctx context.Context) string {
 	status := t.SingleContainerService.GetStatus(ctx)
-	if status == "Container running" {
-		return "Ready"
-	} else {
+	if status != "Container running" {
 		return status
 	}
+
+	// container is running
+
+	return "Ready"
 }
 
 func (t *Service) Close() error {
