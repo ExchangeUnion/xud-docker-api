@@ -15,7 +15,7 @@ if ($LASTEXITCODE -ne 0)
     exit 1
 }
 
-docker run --rm --name proxy `
+docker run -it --rm --name proxy `
 -e "NETWORK=$network" `
 -e "GIN_MODE=release" `
 --net "${network}_default" `

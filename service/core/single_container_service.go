@@ -179,12 +179,12 @@ func (t *SingleContainerService) FollowLogs2() (<-chan string, func(), error) {
 	var running = true
 
 	go func() {
-		c := t.WaitContainer()
-		startedAt := c.State.StartedAt
 		for running {
+			c := t.WaitContainerRunning()
+			startedAt := c.State.StartedAt
 			lines, stop, err := t.FollowLogs(startedAt, "")
 			if err != nil {
-				t.logger.Error("Failed to follow logs: %s (will retry in 3 seconds)", err)
+				t.logger.Error("Failed to follow logs: %s", err)
 				time.Sleep(3 * time.Second)
 			}
 			for line := range lines {
