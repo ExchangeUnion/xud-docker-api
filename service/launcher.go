@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/hpcloud/tail"
 	"github.com/sirupsen/logrus"
-	"io"
 	"strings"
 	"time"
 )
@@ -42,17 +41,19 @@ func (t *LauncherAgent) followLog() {
 		r, err := tail.TailFile(t.logfile, tail.Config{
 			Follow: true,
 			ReOpen: true,
-			Location: &tail.SeekInfo{
-				Offset: 0,
-				Whence: io.SeekStart,
-			},
+			//Location: &tail.SeekInfo{
+			//	Offset: 0,
+			//	Whence: io.SeekStart,
+			//},
 		})
 		if err != nil {
 			t.logger.Debugf("Failed to tail file %s: %s", t.logfile, err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
+		t.logger.Debugf("Iterating log lines")
 		for line := range r.Lines {
+			t.logger.Debugf("*** %s", line.Text)
 			t.handleLine(line.Text)
 		}
 		break
@@ -60,7 +61,6 @@ func (t *LauncherAgent) followLog() {
 }
 
 func (t *LauncherAgent) handleLine(line string) {
-	t.logger.Debugf("*** %s", line)
 	if strings.Contains(line, "Waiting for XUD dependencies to be ready") {
 		status := SetupStatus{Status: "Waiting for XUD dependencies to be ready", Details: nil}
 		t.emitStatus(status)
@@ -97,10 +97,10 @@ func (t *LauncherAgent) handleLine(line string) {
 }
 
 func (t *LauncherAgent) emitStatus(status SetupStatus) {
+	t.statusHistory = append(t.statusHistory, status)
 	for _, listener := range t.listeners {
 		listener <- status
 	}
-	t.statusHistory = append(t.statusHistory, status)
 }
 
 func (t *LauncherAgent) subscribeSetupStatus(history int) (<-chan SetupStatus, func()) {
