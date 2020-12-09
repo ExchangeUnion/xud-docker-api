@@ -1,7 +1,8 @@
 package proxy
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"context"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 )
 
@@ -20,12 +21,8 @@ func New(
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	_, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
-	}
-	return "Ready", nil
+func (t *Service) GetStatus(ctx context.Context) string {
+	return "Ready"
 }
 
 func (t *Service) Close() error {

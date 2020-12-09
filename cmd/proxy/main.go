@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api/service"
 	"github.com/docker/docker/pkg/homedir"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"

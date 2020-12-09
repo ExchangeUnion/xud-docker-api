@@ -2,7 +2,7 @@ package lnd
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	"github.com/sirupsen/logrus"
 	"regexp"
 	"strconv"

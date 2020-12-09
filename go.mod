@@ -1,4 +1,4 @@
-module github.com/ExchangeUnion/xud-docker-api-poc
+module github.com/ExchangeUnion/xud-docker-api
 
 go 1.15
 
@@ -27,6 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/smartystreets/goconvey v1.6.4 // indirect
+	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/ugorji/go v1.1.13 // indirect
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/ybbus/jsonrpc v2.1.2+incompatible
@@ -34,6 +35,8 @@ require (
 	golang.org/x/sys v0.0.0-20201106081118-db71ae66460a // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 	google.golang.org/grpc v1.32.0
-	google.golang.org/protobuf v1.25.0
+	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/ini.v1 v1.61.0
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )

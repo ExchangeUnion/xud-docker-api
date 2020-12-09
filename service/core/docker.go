@@ -42,3 +42,7 @@ func (t *ClientFactory) NewInstance() (*docker.Client, error) {
 	}
 	return client, nil
 }
+
+type DockerTemplate struct {
+	client *docker.Client
+}

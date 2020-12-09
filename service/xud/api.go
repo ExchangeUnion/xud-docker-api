@@ -2,7 +2,7 @@ package xud
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
+	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"

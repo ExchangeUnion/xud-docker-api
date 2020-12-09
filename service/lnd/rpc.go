@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/lnd/lnrpc"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
+	pb "github.com/ExchangeUnion/xud-docker-api/service/lnd/lnrpc"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -15,26 +16,28 @@ import (
 )
 
 const (
-	RPC_RETRY_DELAY = 30 * time.Second
+	RPC_RETRY_DELAY = 3 * time.Second
 )
 
 type RpcClient struct {
-	mutex  *sync.Mutex
-	client pb.LightningClient
-	conn   *grpc.ClientConn
-	logger *logrus.Entry
+	mutex   *sync.Mutex
+	client  pb.LightningClient
+	conn    *grpc.ClientConn
+	logger  *logrus.Entry
+	service *core.SingleContainerService
 }
 
-func NewRpcClient(config config.RpcConfig, logger *logrus.Entry) *RpcClient {
+func NewRpcClient(config config.RpcConfig, logger *logrus.Entry, service *core.SingleContainerService) *RpcClient {
 	host := config["host"].(string)
 	port := uint16(config["port"].(float64))
 	tlsCert := config["tlsCert"].(string)
 	macaroon := config["macaroon"].(string)
 
 	c := &RpcClient{
-		mutex:  &sync.Mutex{},
-		client: nil,
-		logger: logger,
+		mutex:   &sync.Mutex{},
+		client:  nil,
+		logger:  logger,
+		service: service,
 	}
 
 	go c.lazyInit(host, port, tlsCert, macaroon)
@@ -51,7 +54,6 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 			continue
 		}
 
-		addr := fmt.Sprintf("%s:%d", host, port)
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 		opts = append(opts, grpc.WithBlock())
@@ -64,6 +66,11 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 
 		opts = append(opts, grpc.WithPerRPCCredentials(&MacaroonCredential{Readonly: macaroon}))
 
+		t.logger.Debug("Waiting for a running container")
+		t.service.WaitContainerRunning()
+
+		addr := fmt.Sprintf("%s:%d", host, port)
+		t.logger.Debugf("Trying to connect with addr=%s tlsCert=%s macaroon=%s", addr, tlsCert, macaroon)
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
 		if err != nil {

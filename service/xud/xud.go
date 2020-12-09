@@ -1,8 +1,10 @@
 package xud
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"context"
+	"fmt"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 	"os"
 	"strings"
@@ -32,59 +34,61 @@ func New(
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
+	if status != "Container running" {
+		return status
+	}
+
+	// container is running
+
+	resp, err := t.GetInfo()
 	if err != nil {
-		return "", err
-	}
-	if status == "Container running" {
-		resp, err := t.GetInfo()
-		if err != nil {
-			if strings.Contains(err.Error(), "xud is locked") {
-				if _, err := os.Stat("/root/network/data/xud/nodekey.dat"); os.IsNotExist(err) {
-					return "Wallet missing. Create with xucli create/restore.", nil
-				}
-				return "Wallet locked. Unlock with xucli unlock.", nil
-			} else if strings.Contains(err.Error(), "no such file or directory, open '/root/.xud/tls.cert'") {
-				return "Starting...", nil
-			} else if strings.Contains(err.Error(), "xud is starting") {
-				return "Starting...", nil
+		if strings.Contains(err.Error(), "xud is locked") {
+			if _, err := os.Stat("/root/network/data/xud/nodekey.dat"); os.IsNotExist(err) {
+				return "Wallet missing. Create with xucli create/restore."
 			}
-			return "", err
+			return "Wallet locked. Unlock with xucli unlock."
+		} else if strings.Contains(err.Error(), "no such file or directory, open '/root/.xud/tls.cert'") {
+			return "Starting..."
+		} else if strings.Contains(err.Error(), "xud is starting") {
+			return "Starting..."
 		}
-		lndbtcStatus := resp.Lnd["BTC"].Status
-		lndltcStatus := resp.Lnd["LTC"].Status
-		connextStatus := resp.Connext.Status
-
-		if lndbtcStatus == "Ready" && lndltcStatus == "Ready" && connextStatus == "Ready" {
-			return "Ready", nil
-		}
-
-		if strings.Contains(lndbtcStatus, "has no active channels") ||
-			strings.Contains(lndltcStatus, "has no active channels") ||
-			strings.Contains(connextStatus, "has no active channels") {
-			return "Waiting for channels", nil
-		}
-
-		var notReady []string
-		if lndbtcStatus != "Ready" {
-			notReady = append(notReady, "lndbtc")
-		}
-		if lndltcStatus != "Ready" {
-			notReady = append(notReady, "lndltc")
-		}
-		if connextStatus != "Ready" {
-			notReady = append(notReady, "connext")
-		}
-
-		return "Waiting for " + strings.Join(notReady, ", "), nil
-	} else {
-		return status, nil
+		return fmt.Sprintf("Error: %s", err)
 	}
+
+	lndbtcStatus := resp.Lnd["BTC"].Status
+	lndltcStatus := resp.Lnd["LTC"].Status
+	connextStatus := resp.Connext.Status
+
+	if lndbtcStatus == "Ready" && lndltcStatus == "Ready" && connextStatus == "Ready" {
+		return "Ready"
+	}
+
+	if strings.Contains(lndbtcStatus, "has no active channels") ||
+		strings.Contains(lndltcStatus, "has no active channels") ||
+		strings.Contains(connextStatus, "has no active channels") {
+		return "Waiting for channels"
+	}
+
+	var notReady []string
+	if lndbtcStatus != "Ready" {
+		notReady = append(notReady, "lndbtc")
+	}
+	if lndltcStatus != "Ready" {
+		notReady = append(notReady, "lndltc")
+	}
+	if connextStatus != "Ready" {
+		notReady = append(notReady, "connext")
+	}
+
+	return "Waiting for " + strings.Join(notReady, ", ")
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		t.GetLogger().Errorf("Failed to close RPC client: %s", err)
+	}
 	return nil
 }
-

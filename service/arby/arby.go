@@ -1,8 +1,9 @@
 package arby
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"context"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 )
 
@@ -24,15 +25,12 @@ func New(
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
-	}
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
 	if status == "Container running" {
-		return "Ready", nil
+		return "Ready"
 	} else {
-		return status, nil
+		return status
 	}
 }
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/boltz/boltzrpc"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	pb "github.com/ExchangeUnion/xud-docker-api/service/boltz/boltzrpc"
 	"google.golang.org/grpc"
 	"strings"
 	"sync"
@@ -13,11 +13,11 @@ import (
 )
 
 type RpcClient struct {
-	cond *sync.Cond
+	cond      *sync.Cond
 	btcClient pb.BoltzClient
 	ltcClient pb.BoltzClient
-	btcConn *grpc.ClientConn
-	ltcConn *grpc.ClientConn
+	btcConn   *grpc.ClientConn
+	ltcConn   *grpc.ClientConn
 }
 
 func NewRpcClient(config config.RpcConfig) *RpcClient {
@@ -27,7 +27,7 @@ func NewRpcClient(config config.RpcConfig) *RpcClient {
 	ltcPort := uint16(config["ltcPort"].(float64))
 
 	c := &RpcClient{
-		cond:   sync.NewCond(&sync.Mutex{}),
+		cond:      sync.NewCond(&sync.Mutex{}),
 		btcClient: nil,
 		ltcClient: nil,
 	}

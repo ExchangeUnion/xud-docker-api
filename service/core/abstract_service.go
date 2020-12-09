@@ -36,10 +36,6 @@ func (t *AbstractService) GetName() string {
 	return t.name
 }
 
-func (t *AbstractService) GetStatus() (string, error) {
-	return "Unknown", nil
-}
-
 func (t *AbstractService) ConfigureRouter(r *gin.RouterGroup) {
 }
 

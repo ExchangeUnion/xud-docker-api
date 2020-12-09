@@ -2,12 +2,12 @@ package connext
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
+	"github.com/ExchangeUnion/xud-docker-api/config"
 	"net/http"
 )
 
 type RpcClient struct {
-	url string
+	url            string
 	healthEndpoint string
 }
 
@@ -16,7 +16,7 @@ func NewRpcClient(config config.RpcConfig) *RpcClient {
 	port := uint16(config["port"].(float64))
 	url := fmt.Sprintf("http://%s:%d", host, port)
 	return &RpcClient{
-		url: url,
+		url:            url,
 		healthEndpoint: fmt.Sprintf("%s/health", url),
 	}
 }

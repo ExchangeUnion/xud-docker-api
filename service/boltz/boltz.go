@@ -1,9 +1,10 @@
 package boltz
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 )
 
@@ -28,7 +29,7 @@ func New(
 ) *Service {
 	return &Service{
 		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
-		RpcClient: NewRpcClient(rpcConfig),
+		RpcClient:              NewRpcClient(rpcConfig),
 	}
 }
 
@@ -65,26 +66,28 @@ func (t *Service) checkNode(node Node) NodeStatus {
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
-	}
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
 	if status != "Container running" {
-		return status, err
+		return status
 	}
+
+	// container is running
 
 	btcStatus := t.checkNode(BTC)
 	ltcStatus := t.checkNode(LTC)
 
 	if btcStatus.IsUp && ltcStatus.IsUp {
-		return "Ready", nil
+		return "Ready"
 	} else {
-		return btcStatus.Status + "; " + ltcStatus.Status, nil
+		return btcStatus.Status + "; " + ltcStatus.Status
 	}
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		t.GetLogger().Errorf("Failed to close RPC client: %s", err)
+	}
 	return nil
 }

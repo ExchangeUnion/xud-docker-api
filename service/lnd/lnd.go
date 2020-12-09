@@ -1,9 +1,10 @@
 package lnd
 
 import (
+	"context"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 	"gopkg.in/ini.v1"
 	"io/ioutil"
@@ -38,16 +39,17 @@ func New(
 
 	base := core.NewSingleContainerService(name, services, containerName, dockerClient)
 
-	w := NewLogWatcher(containerName, base.GetLogger().WithField("scope", "LogWatcher"), base)
+	rpcClient := NewRpcClient(rpcConfig, base.GetLogger().WithField("component", "rpc"), base)
+	logWatcher := NewLogWatcher(containerName, base.GetLogger().WithField("component", "logwatcher"), base)
 
 	s := &Service{
 		SingleContainerService: base,
-		RpcClient:              NewRpcClient(rpcConfig, base.GetLogger().WithField("scope", "RPC")),
+		RpcClient:              rpcClient,
 		chain:                  chain,
-		logWatcher:             w,
+		logWatcher:             logWatcher,
 	}
 
-	go w.Start()
+	go logWatcher.Start()
 
 	return s
 }
@@ -130,53 +132,55 @@ func syncingText(current int64, total int64) string {
 	return fmt.Sprintf("Syncing %.2f%% (%d/%d)", p, current, total)
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
+	if status != "Container running" {
+		return status
 	}
-	if status == "Container running" {
-		info, err := t.GetInfo()
-		if err != nil {
-			if strings.Contains(err.Error(), "Wallet is encrypted") {
-				return "Wallet locked. Unlock with lncli unlock.", nil
-			} else if strings.Contains(err.Error(), "no such file or directory") {
-				if t.Neutrino() {
-					return t.logWatcher.GetNeutrinoStatus(), nil
-				}
-			} else if strings.Contains(err.Error(), "no client") {
-				if t.Neutrino() {
-					return t.logWatcher.GetNeutrinoStatus(), nil
-				}
+
+	// container is running
+
+	info, err := t.GetInfo()
+	if err != nil {
+		if strings.Contains(err.Error(), "Wallet is encrypted") {
+			return "Wallet locked. Unlock with lncli unlock."
+		} else if strings.Contains(err.Error(), "no such file or directory") {
+			if t.Neutrino() {
+				return t.logWatcher.GetNeutrinoStatus()
 			}
-			return "", err
+		} else if strings.Contains(err.Error(), "no client") {
+			if t.Neutrino() {
+				return t.logWatcher.GetNeutrinoStatus()
+			}
 		}
+		return fmt.Sprintf("Error: %s", err)
+	}
 
-		syncedToChain := info.SyncedToChain
-		total := info.BlockHeight
-		current, err := t.logWatcher.getCurrentHeight()
+	syncedToChain := info.SyncedToChain
+	total := info.BlockHeight
+	current, err := t.logWatcher.getCurrentHeight()
 
-		//t.GetLogger().Infof("Current height is %d", current)
+	//t.GetLogger().Infof("Current height is %d", current)
 
-		if err == nil && current > 0 {
-			if total <= current {
-				return "Ready", nil
-			} else {
-				return syncingText(int64(current), int64(total)), nil
-			}
+	if err == nil && current > 0 {
+		if total <= current {
+			return "Ready"
 		} else {
-			if syncedToChain {
-				return "Ready", nil
-			} else {
-				return "Syncing", nil
-			}
+			return syncingText(int64(current), int64(total))
 		}
 	} else {
-		return status, nil
+		if syncedToChain {
+			return "Ready"
+		} else {
+			return "Syncing"
+		}
 	}
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		t.GetLogger().Errorf("Failed to close RPC client: %s", err)
+	}
 	return nil
 }

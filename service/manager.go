@@ -5,20 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/arby"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/bitcoind"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/boltz"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/connext"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/geth"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/litecoind"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/lnd"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/webui"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud"
+	"github.com/ExchangeUnion/xud-docker-api/service/arby"
+	"github.com/ExchangeUnion/xud-docker-api/service/bitcoind"
+	"github.com/ExchangeUnion/xud-docker-api/service/boltz"
+	"github.com/ExchangeUnion/xud-docker-api/service/connext"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/service/geth"
+	"github.com/ExchangeUnion/xud-docker-api/service/litecoind"
+	"github.com/ExchangeUnion/xud-docker-api/service/lnd"
+	"github.com/ExchangeUnion/xud-docker-api/service/proxy"
+	"github.com/ExchangeUnion/xud-docker-api/service/webui"
+	"github.com/ExchangeUnion/xud-docker-api/service/xud"
 	"github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
+	"time"
 )
 
 var (
@@ -40,15 +42,17 @@ type Manager struct {
 	network   string
 	services  []core.Service
 	factory   core.DockerClientFactory
-	logger    *logrus.Logger
-	listeners map[string]core.Listener
+	logger    *logrus.Entry
+	listeners map[string]core.DockerEventListener
+
+	*LauncherAgent
 }
 
 func containerName(network string, service string) string {
 	return fmt.Sprintf("%s_%s_1", network, service)
 }
 
-func initServices(network string, dockerClient *docker.Client, listeners map[string]core.Listener) []core.Service {
+func initServices(network string, dockerClient *docker.Client, listeners map[string]core.DockerEventListener) []core.Service {
 
 	f, err := ioutil.ReadFile("/root/network/data/config.json")
 	if err != nil {
@@ -117,7 +121,7 @@ func initServices(network string, dockerClient *docker.Client, listeners map[str
 	}
 
 	// add self
-	s = webui.New("proxy", resultMap, containerName(network, "proxy"), dockerClient)
+	s = proxy.New("proxy", resultMap, containerName(network, "proxy"), dockerClient)
 	result = append(result, s)
 	resultMap[s.GetName()] = s
 
@@ -130,17 +134,17 @@ func NewManager(network string) (*Manager, error) {
 		return nil, err
 	}
 
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger := logrus.NewEntry(logrus.StandardLogger()).WithField("name", "ServiceManager")
 
-	listeners := map[string]core.Listener{}
+	listeners := map[string]core.DockerEventListener{}
 
 	manager := Manager{
-		network:   network,
-		services:  initServices(network, factory.GetSharedInstance(), listeners),
-		factory:   factory,
-		logger:    logger,
-		listeners: listeners,
+		network:       network,
+		services:      initServices(network, factory.GetSharedInstance(), listeners),
+		factory:       factory,
+		logger:        logger,
+		listeners:     listeners,
+		LauncherAgent: NewLauncherAgent(network, logger.WithField("name", "LauncherAgent")),
 	}
 
 	go manager.listenForDockerEvents()
@@ -163,10 +167,9 @@ func (t *Manager) GetStatus() map[string]string {
 	for _, svc := range t.services {
 		s := svc
 		go func() {
-			status, err := s.GetStatus()
-			if err != nil {
-				status = fmt.Sprintf("Error: %s", err)
-			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			status := s.GetStatus(ctx)
 			t.logger.Debugf("[Status] %s: %s", s.GetName(), status)
 			ch <- StatusResult{Service: s.GetName(), Status: status}
 		}()
@@ -197,11 +200,6 @@ type ServiceEntry struct {
 type ServiceStatus struct {
 	Service string `json:"service"`
 	Status  string `json:"status"`
-}
-
-type SetupStatus struct {
-	Status  string      `json:"status"`
-	Details interface{} `json:"details"`
 }
 
 func (t *Manager) Close() {

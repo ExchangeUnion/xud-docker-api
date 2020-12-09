@@ -3,9 +3,9 @@ package xud
 import (
 	"context"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud/xudrpc"
-	pb "github.com/ExchangeUnion/xud-docker-api-poc/service/xud/xudrpc"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/xud/xudrpc"
+	pb "github.com/ExchangeUnion/xud-docker-api/service/xud/xudrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"sync"

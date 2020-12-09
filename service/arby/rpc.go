@@ -1,7 +1,7 @@
 package arby
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
+	"github.com/ExchangeUnion/xud-docker-api/config"
 )
 
 type RpcClient struct {
