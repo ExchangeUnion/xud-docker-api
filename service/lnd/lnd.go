@@ -152,6 +152,10 @@ func (t *Service) GetStatus(ctx context.Context) string {
 			if t.Neutrino() {
 				return t.logWatcher.GetNeutrinoStatus()
 			}
+		} else if strings.Contains(err.Error(), "rpc error: code = Unimplemented desc = unknown service lnrpc.Lightning") {
+			if t.Neutrino() {
+				return t.logWatcher.GetNeutrinoStatus()
+			}
 		}
 		return fmt.Sprintf("Error: %s", err)
 	}
