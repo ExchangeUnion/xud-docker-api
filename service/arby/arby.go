@@ -37,6 +37,9 @@ func (t *Service) GetStatus(ctx context.Context) string {
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		t.GetLogger().Errorf("Failed to close RPC client: %s", err)
+	}
 	return nil
 }
