@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	RPC_RETRY_DELAY = 3 * time.Second
+	RpcRetryDelay = 3 * time.Second
 )
 
 type RpcClient struct {
@@ -50,7 +50,7 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 		creds, err := credentials.NewClientTLSFromFile(tlsCert, "localhost")
 		if err != nil {
 			t.logger.Warnf("Failed to create gRPC TLS credentials: %s", err)
-			time.Sleep(RPC_RETRY_DELAY)
+			time.Sleep(RpcRetryDelay)
 			continue
 		}
 
@@ -60,7 +60,7 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 
 		if _, err := os.Stat(macaroon); os.IsNotExist(err) {
 			t.logger.Warnf("Waiting for %s", macaroon)
-			time.Sleep(RPC_RETRY_DELAY)
+			time.Sleep(RpcRetryDelay)
 			continue
 		}
 
@@ -71,12 +71,12 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 
 		addr := fmt.Sprintf("%s:%d", host, port)
 		t.logger.Debugf("Trying to connect with addr=%s tlsCert=%s macaroon=%s", addr, tlsCert, macaroon)
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
 		if err != nil {
 			cancel() // prevent context resource leak
 			t.logger.Warnf("Failed to create gRPC connection: %s", err)
-			time.Sleep(RPC_RETRY_DELAY)
+			time.Sleep(RpcRetryDelay)
 			continue
 		}
 		cancel() // prevent context resource leak

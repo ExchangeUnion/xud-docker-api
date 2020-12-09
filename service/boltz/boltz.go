@@ -27,9 +27,11 @@ func New(
 	dockerClient *docker.Client,
 	rpcConfig config.RpcConfig,
 ) *Service {
+	base := core.NewSingleContainerService(name, services, containerName, dockerClient)
+
 	return &Service{
-		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
-		RpcClient:              NewRpcClient(rpcConfig),
+		SingleContainerService: base,
+		RpcClient:              NewRpcClient(rpcConfig, base.GetLogger().WithField("component", "rpc"), base),
 	}
 }
 
