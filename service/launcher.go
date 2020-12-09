@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hpcloud/tail"
 	"github.com/sirupsen/logrus"
+	"io"
 	"strings"
 	"time"
 )
@@ -40,7 +41,12 @@ func (t *LauncherAgent) followLog() {
 		t.logger.Debugf("Trying to follow logfile %s", t.logfile)
 		r, err := tail.TailFile(t.logfile, tail.Config{
 			Follow: true,
-			ReOpen: true})
+			ReOpen: true,
+			Location: &tail.SeekInfo{
+				Offset: 0,
+				Whence: io.SeekStart,
+			},
+		})
 		if err != nil {
 			t.logger.Debugf("Failed to tail file %s: %s", t.logfile, err)
 			time.Sleep(1 * time.Second)
