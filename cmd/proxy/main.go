@@ -21,9 +21,12 @@ var (
 	sioServer *socketio.Server
 )
 
-func initLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+func initLogger() *logrus.Entry {
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+	logger := logrus.NewEntry(logrus.StandardLogger())
 	return logger
 }
 

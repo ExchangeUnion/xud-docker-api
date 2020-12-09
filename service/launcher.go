@@ -54,6 +54,7 @@ func (t *LauncherAgent) followLog() {
 }
 
 func (t *LauncherAgent) handleLine(line string) {
+	t.logger.Debugf("*** %s", line)
 	if strings.Contains(line, "Waiting for XUD dependencies to be ready") {
 		status := SetupStatus{Status: "Waiting for XUD dependencies to be ready", Details: nil}
 		t.emitStatus(status)
@@ -99,21 +100,28 @@ func (t *LauncherAgent) emitStatus(status SetupStatus) {
 func (t *LauncherAgent) subscribeSetupStatus(history int) (<-chan SetupStatus, func()) {
 	ch := make(chan SetupStatus)
 	t.listeners = append(t.listeners, ch)
-	if history > 0 {
-		if history >= len(t.statusHistory) {
+
+	// FIXME make sure all history is emited before new status comes in
+	go func() {
+		if history > 0 {
+			if history >= len(t.statusHistory) {
+				for _, status := range t.statusHistory {
+					ch <- status
+				}
+			} else {
+				for _, status := range t.statusHistory[len(t.statusHistory)-history:] {
+					ch <- status
+				}
+			}
+		} else if history == -1 {
+
+			t.logger.Debugf("history count: %d", len(t.statusHistory))
 			for _, status := range t.statusHistory {
 				ch <- status
 			}
-		} else {
-			for _, status := range t.statusHistory[len(t.statusHistory)-history:] {
-				ch <- status
-			}
 		}
-	} else if history == -1 {
-		for _, status := range t.statusHistory {
-			ch <- status
-		}
-	}
+	}()
+
 	return ch, func() {
 		for i, listener := range t.listeners {
 			if listener == ch {
