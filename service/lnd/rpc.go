@@ -71,15 +71,14 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 
 		addr := fmt.Sprintf("%s:%d", host, port)
 		t.logger.Debugf("Trying to connect with addr=%s tlsCert=%s macaroon=%s", addr, tlsCert, macaroon)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
+		//cancel() // prevent context resource leak
 		if err != nil {
-			cancel() // prevent context resource leak
 			t.logger.Warnf("Failed to create gRPC connection: %s", err)
 			time.Sleep(RpcRetryDelay)
 			continue
 		}
-		cancel() // prevent context resource leak
 
 		t.logger.Debugf("Created gRPC connection")
 		t.conn = conn

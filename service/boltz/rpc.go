@@ -65,15 +65,14 @@ func (t *RpcClient) createClient(client *pb.BoltzClient, _conn **grpc.ClientConn
 		addr := fmt.Sprintf("%s:%d", host, port)
 		t.logger.Debugf("Trying to connect with addr=%s", addr)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
+		//cancel() // prevent context resource leak
 		if err != nil {
-			cancel() // prevent context resource leak
 			t.logger.Warnf("Failed to create gRPC connection: %s", err)
 			time.Sleep(RpcRetryDelay)
 			continue
 		}
-		cancel()
 
 		t.logger.Debugf("Created gRPC connection")
 
