@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ExchangeUnion/xud-docker-api/service/core"
-	"github.com/ExchangeUnion/xud-docker-api/service/xud"
 	docker "github.com/docker/docker/client"
 )
 
@@ -35,14 +34,14 @@ func (t *Service) GetStatus(ctx context.Context) string {
 
 	// container is running
 
-	svc := t.GetService("xud")
-	if svc != nil {
-		xudSvc := svc.(*xud.Service)
-		info, err := xudSvc.GetInfo()
-		if err == nil {
-			return info.Connext.Status
-		}
-	}
+	//svc := t.GetService("xud")
+	//if svc != nil {
+	//	xudSvc := svc.(*xud.Service)
+	//	info, err := xudSvc.GetInfo()
+	//	if err == nil {
+	//		return info.Connext.Status
+	//	}
+	//}
 
 	if t.IsHealthy() {
 		return "Ready"
