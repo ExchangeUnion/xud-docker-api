@@ -26,6 +26,7 @@ func initLogger() *logrus.Entry {
 	logrus.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
+	logrus.SetOutput(os.Stdout)
 	logger := logrus.NewEntry(logrus.StandardLogger())
 	return logger
 }
