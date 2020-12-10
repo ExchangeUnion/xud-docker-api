@@ -85,9 +85,20 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 
 		api.GET("/v1/setup-status", func(c *gin.Context) {
 
-			statusChan, cancel := t.subscribeSetupStatus(-1)
+			statusChan, cancel, history := t.subscribeSetupStatus(-1)
 
 			c.Stream(func(w io.Writer) bool {
+				for _, status := range history {
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+
+					if status.Status == "Done" {
+						cancel()
+						return false
+					}
+				}
 				for status := range statusChan {
 					j, _ := json.Marshal(status)
 					c.Writer.Write(j)
@@ -96,7 +107,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 
 					if status.Status == "Done" {
 						cancel()
-						break
+						return false
 					}
 				}
 				return false

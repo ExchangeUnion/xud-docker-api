@@ -1,11 +1,11 @@
 package service
 
 import (
+	"bufio"
 	"fmt"
-	"github.com/hpcloud/tail"
 	"github.com/sirupsen/logrus"
+	"os/exec"
 	"strings"
-	"time"
 )
 
 type SetupStatus struct {
@@ -36,27 +36,22 @@ func NewLauncherAgent(network string, logger *logrus.Entry) *LauncherAgent {
 }
 
 func (t *LauncherAgent) followLog() {
-	for {
-		t.logger.Debugf("Trying to follow logfile %s", t.logfile)
-		r, err := tail.TailFile(t.logfile, tail.Config{
-			Follow: true,
-			ReOpen: true,
-			//Location: &tail.SeekInfo{
-			//	Offset: 0,
-			//	Whence: io.SeekStart,
-			//},
-		})
-		if err != nil {
-			t.logger.Debugf("Failed to tail file %s: %s", t.logfile, err)
-			time.Sleep(1 * time.Second)
-			continue
+	c := exec.Command("tail", "-F", t.logfile)
+	r, _ := c.StdoutPipe()
+	c.Stderr = c.Stdout
+
+	go func() {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			line := scanner.Text()
+			t.logger.Debugf("*** %s", line)
+			t.handleLine(line)
 		}
-		t.logger.Debugf("Iterating log lines")
-		for line := range r.Lines {
-			t.logger.Debugf("*** %s", line.Text)
-			t.handleLine(line.Text)
-		}
-		break
+	}()
+
+	err := c.Run()
+	if err != nil {
+		t.logger.Errorf("Failed to tail %s: %s", t.logfile, err)
 	}
 }
 
@@ -97,38 +92,30 @@ func (t *LauncherAgent) handleLine(line string) {
 }
 
 func (t *LauncherAgent) emitStatus(status SetupStatus) {
+	t.logger.Debugf("Emit %s", status)
 	t.statusHistory = append(t.statusHistory, status)
 	for _, listener := range t.listeners {
 		listener <- status
 	}
 }
 
-func (t *LauncherAgent) subscribeSetupStatus(history int) (<-chan SetupStatus, func()) {
-	ch := make(chan SetupStatus)
+func (t *LauncherAgent) subscribeSetupStatus(history int) (<-chan SetupStatus, func(), []SetupStatus) {
+	ch := make(chan SetupStatus, 100)
 	t.listeners = append(t.listeners, ch)
 
-	// FIXME make sure all history is emited before new status comes in
-	go func() {
-		if history > 0 {
-			if history >= len(t.statusHistory) {
-				for _, status := range t.statusHistory {
-					ch <- status
-				}
-			} else {
-				for _, status := range t.statusHistory[len(t.statusHistory)-history:] {
-					ch <- status
-				}
-			}
-		} else if history == -1 {
+	var h []SetupStatus
 
-			t.logger.Debugf("history count: %d", len(t.statusHistory))
-			for _, status := range t.statusHistory {
-				ch <- status
-			}
+	if history > 0 {
+		if history >= len(t.statusHistory) {
+			h = append(h, t.statusHistory...)
+		} else {
+			h = append(h, t.statusHistory[len(t.statusHistory)-history:]...)
 		}
-	}()
+	} else if history == -1 {
+		h = append(h, t.statusHistory...)
+	}
 
-	return ch, func() {
+	var cancel = func() {
 		for i, listener := range t.listeners {
 			if listener == ch {
 				if i+1 >= len(t.listeners) {
@@ -140,4 +127,6 @@ func (t *LauncherAgent) subscribeSetupStatus(history int) (<-chan SetupStatus, f
 			}
 		}
 	}
+
+	return ch, cancel, h
 }
