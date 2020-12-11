@@ -18,19 +18,23 @@ const (
 	RpcRetryDelay = 3 * time.Second
 )
 
+var (
+	NoClient = errors.New("no client")
+)
+
 type RpcClient struct {
 	btcConn   *grpc.ClientConn
 	ltcConn   *grpc.ClientConn
 	btcClient pb.BoltzClient
 	ltcClient pb.BoltzClient
-	btcMutex  *sync.Mutex
-	ltcMutex  *sync.Mutex
+	btcMutex  *sync.RWMutex
+	ltcMutex  *sync.RWMutex
 
 	logger  *logrus.Entry
 	service *core.SingleContainerService
 }
 
-func NewRpcClient(config config.RpcConfig, logger *logrus.Entry, service *core.SingleContainerService) *RpcClient {
+func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService) *RpcClient {
 
 	host := config["host"].(string)
 	btcPort := uint16(config["btcPort"].(float64))
@@ -41,10 +45,10 @@ func NewRpcClient(config config.RpcConfig, logger *logrus.Entry, service *core.S
 		ltcConn:   nil,
 		btcClient: nil,
 		ltcClient: nil,
-		btcMutex:  &sync.Mutex{},
-		ltcMutex:  &sync.Mutex{},
+		btcMutex:  &sync.RWMutex{},
+		ltcMutex:  &sync.RWMutex{},
 
-		logger:  logger,
+		logger:  service.GetLogger().WithField("scope", "RPC"),
 		service: service,
 	}
 
@@ -53,7 +57,7 @@ func NewRpcClient(config config.RpcConfig, logger *logrus.Entry, service *core.S
 	return c
 }
 
-func (t *RpcClient) createClient(client *pb.BoltzClient, _conn **grpc.ClientConn, mutex *sync.Mutex, host string, port uint16) {
+func (t *RpcClient) createClient(client *pb.BoltzClient, _conn **grpc.ClientConn, mutex *sync.RWMutex, host string, port uint16) {
 	for {
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithInsecure())
@@ -104,54 +108,68 @@ func (t *RpcClient) lazyInit(host string, btcPort uint16, ltcPort uint16) {
 }
 
 func (t *RpcClient) Close() error {
-	_ = t.btcConn.Close()
-	_ = t.ltcConn.Close()
+	var err error
+
+	err = t.btcConn.Close()
+	if err != nil {
+		return err
+	}
+
+	err = t.ltcConn.Close()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (t *RpcClient) getRpcClient(currency string) pb.BoltzClient {
+func (t *RpcClient) getRpcClient(currency string) (pb.BoltzClient, error) {
 	currency = strings.ToLower(currency)
+	var client pb.BoltzClient
 	switch currency {
 	case "btc":
-		t.btcMutex.Lock()
-		defer t.btcMutex.Unlock()
-		return t.btcClient
+		t.btcMutex.RLock()
+		defer t.btcMutex.RUnlock()
+		client = t.btcClient
 	case "ltc":
-		t.ltcMutex.Lock()
-		defer t.ltcMutex.Unlock()
-		return t.ltcClient
+		t.ltcMutex.RLock()
+		defer t.ltcMutex.RUnlock()
+		client = t.ltcClient
 	default:
 		panic(errors.New("invalid currency: " + currency))
 	}
-}
-
-func (t *RpcClient) GetServiceInfo(currency string) (*pb.GetServiceInfoResponse, error) {
-	client := t.getRpcClient(currency)
 	if client == nil {
-		return nil, errors.New("no client")
+		return nil, NoClient
 	}
-	fmt.Printf("client=%v", client)
-	req := pb.GetServiceInfoRequest{}
-	return client.GetServiceInfo(context.Background(), &req)
+	return client, nil
 }
 
-func (t *RpcClient) Deposit(currency string, inboundLiquidity uint32) (*pb.DepositResponse, error) {
-	client := t.getRpcClient(currency)
-	if client == nil {
-		return nil, errors.New("no client")
+func (t *RpcClient) GetServiceInfo(ctx context.Context, currency string) (*pb.GetServiceInfoResponse, error) {
+	client, err := t.getRpcClient(currency)
+	if err != nil {
+		return nil, err
+	}
+	req := pb.GetServiceInfoRequest{}
+	return client.GetServiceInfo(ctx, &req)
+}
+
+func (t *RpcClient) Deposit(ctx context.Context, currency string, inboundLiquidity uint32) (*pb.DepositResponse, error) {
+	client, err := t.getRpcClient(currency)
+	if err != nil {
+		return nil, err
 	}
 	req := pb.DepositRequest{}
 	req.InboundLiquidity = inboundLiquidity
-	return client.Deposit(context.Background(), &req)
+	return client.Deposit(ctx, &req)
 }
 
-func (t *RpcClient) Withdraw(currency string, amount int64, address string) (*pb.CreateReverseSwapResponse, error) {
-	client := t.getRpcClient(currency)
-	if client == nil {
-		return nil, errors.New("no client")
+func (t *RpcClient) Withdraw(ctx context.Context, currency string, amount int64, address string) (*pb.CreateReverseSwapResponse, error) {
+	client, err := t.getRpcClient(currency)
+	if err != nil {
+		return nil, err
 	}
 	req := pb.CreateReverseSwapRequest{}
 	req.Amount = amount
 	req.Address = address
-	return client.CreateReverseSwap(context.Background(), &req)
+	return client.CreateReverseSwap(ctx, &req)
 }

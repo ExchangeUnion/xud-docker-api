@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ExchangeUnion/xud-docker-api/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/service/xud"
 	docker "github.com/docker/docker/client"
 )
 
@@ -20,9 +21,11 @@ func New(
 	dockerClient *docker.Client,
 	rpcConfig config.RpcConfig,
 ) *Service {
+	base := core.NewSingleContainerService(name, services, containerName, dockerClient)
+
 	return &Service{
-		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
-		RpcClient:              NewRpcClient(rpcConfig),
+		SingleContainerService: base,
+		RpcClient:              NewRpcClient(rpcConfig, base),
 	}
 }
 
@@ -34,16 +37,16 @@ func (t *Service) GetStatus(ctx context.Context) string {
 
 	// container is running
 
-	//svc := t.GetService("xud")
-	//if svc != nil {
-	//	xudSvc := svc.(*xud.Service)
-	//	info, err := xudSvc.GetInfo()
-	//	if err == nil {
-	//		return info.Connext.Status
-	//	}
-	//}
+	svc := t.GetService("xud")
+	if svc != nil {
+		xudSvc := svc.(*xud.Service)
+		info, err := xudSvc.GetInfo(ctx)
+		if err == nil {
+			return info.Connext.Status
+		}
+	}
 
-	if t.IsHealthy() {
+	if t.IsHealthy(ctx) {
 		return "Ready"
 	} else {
 		return "Starting..."
@@ -62,6 +65,9 @@ func (t *Service) GetEthProvider() (string, error) {
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		return err
+	}
 	return nil
 }

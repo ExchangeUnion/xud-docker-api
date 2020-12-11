@@ -39,8 +39,8 @@ func New(
 
 	base := core.NewSingleContainerService(name, services, containerName, dockerClient)
 
-	rpcClient := NewRpcClient(rpcConfig, base.GetLogger().WithField("component", "rpc"), base)
-	logWatcher := NewLogWatcher(containerName, base.GetLogger().WithField("component", "logwatcher"), base)
+	rpcClient := NewRpcClient(rpcConfig, base)
+	logWatcher := NewLogWatcher(containerName, base)
 
 	s := &Service{
 		SingleContainerService: base,

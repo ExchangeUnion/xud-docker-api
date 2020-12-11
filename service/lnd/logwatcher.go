@@ -60,7 +60,7 @@ func initRegex(containerName string) (*regexp.Regexp, *regexp.Regexp, *regexp.Re
 	return p, p0, p1, p2
 }
 
-func NewLogWatcher(containerName string, logger *logrus.Entry, service *core.SingleContainerService) *LogWatcher {
+func NewLogWatcher(containerName string, service *core.SingleContainerService) *LogWatcher {
 	p, p0, p1, p2 := initRegex(containerName)
 	w := &LogWatcher{
 		p:               p,
@@ -68,7 +68,7 @@ func NewLogWatcher(containerName string, logger *logrus.Entry, service *core.Sin
 		p1:              p1,
 		p2:              p2,
 		neutrinoSyncing: NeutrinoSyncing{current: 0, total: 0, done: false},
-		logger:          logger,
+		logger:          service.GetLogger().WithField("scope", "LogWatcher"),
 		service:         service,
 	}
 	return w

@@ -15,12 +15,6 @@ type Service struct {
 	*RpcClient
 }
 
-type XudRpc struct {
-	Host string
-	Port int
-	Cert string
-}
-
 func New(
 	name string,
 	services map[string]core.Service,
@@ -28,9 +22,11 @@ func New(
 	dockerClient *docker.Client,
 	rpcConfig config.RpcConfig,
 ) *Service {
+	base := core.NewSingleContainerService(name, services, containerName, dockerClient)
+
 	return &Service{
-		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
-		RpcClient:              NewRpcClient(rpcConfig),
+		SingleContainerService: base,
+		RpcClient:              NewRpcClient(rpcConfig, base),
 	}
 }
 
@@ -42,7 +38,7 @@ func (t *Service) GetStatus(ctx context.Context) string {
 
 	// container is running
 
-	resp, err := t.GetInfo()
+	resp, err := t.GetInfo(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "xud is locked") {
 			if _, err := os.Stat("/root/network/data/xud/nodekey.dat"); os.IsNotExist(err) {

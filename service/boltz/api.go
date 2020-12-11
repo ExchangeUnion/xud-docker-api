@@ -1,16 +1,24 @@
 package boltz
 
 import (
+	"context"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+	"time"
+)
+
+const (
+	Timeout = 3 * time.Second
 )
 
 func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 	r.GET("/v1/boltz/service-info/:currency", func(c *gin.Context) {
-		resp, err := t.GetServiceInfo(c.Param("currency"))
+		ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+		defer cancel()
+		resp, err := t.GetServiceInfo(ctx, c.Param("currency"))
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 	r.GET("/v1/boltz/deposit/:currency", func(c *gin.Context) {
@@ -19,7 +27,9 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 			utils.JsonError(c, fmt.Sprintf("Invalid value %s for inbound_liquidity", c.Query("inbound_liquidity")), http.StatusBadRequest)
 			return
 		}
-		resp, err := t.Deposit(c.Param("currency"), uint32(inboundLiquidity))
+		ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+		defer cancel()
+		resp, err := t.Deposit(ctx, c.Param("currency"), uint32(inboundLiquidity))
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 	r.POST("/v1/boltz/withdraw/:currency", func(c *gin.Context) {
@@ -28,7 +38,9 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 			utils.JsonError(c, fmt.Sprintf("Invalid amount %s", c.PostForm("amount")), http.StatusBadRequest)
 			return
 		}
-		resp, err := t.Withdraw(c.Param("currency"), amount, c.PostForm("address"))
+		ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+		defer cancel()
+		resp, err := t.Withdraw(ctx, c.Param("currency"), amount, c.PostForm("address"))
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 }

@@ -31,7 +31,7 @@ func New(
 
 	return &Service{
 		SingleContainerService: base,
-		RpcClient:              NewRpcClient(rpcConfig, base.GetLogger().WithField("component", "rpc"), base),
+		RpcClient:              NewRpcClient(rpcConfig, base),
 	}
 }
 

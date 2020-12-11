@@ -27,7 +27,7 @@ type RpcClient struct {
 	service *core.SingleContainerService
 }
 
-func NewRpcClient(config config.RpcConfig, logger *logrus.Entry, service *core.SingleContainerService) *RpcClient {
+func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService) *RpcClient {
 	host := config["host"].(string)
 	port := uint16(config["port"].(float64))
 	tlsCert := config["tlsCert"].(string)
@@ -36,7 +36,7 @@ func NewRpcClient(config config.RpcConfig, logger *logrus.Entry, service *core.S
 	c := &RpcClient{
 		mutex:   &sync.Mutex{},
 		client:  nil,
-		logger:  logger,
+		logger:  service.GetLogger().WithField("scope", "RPC"),
 		service: service,
 	}
 
@@ -92,7 +92,10 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon 
 }
 
 func (t *RpcClient) Close() error {
-	_ = t.conn.Close()
+	err := t.conn.Close()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
