@@ -58,7 +58,7 @@ func (t *SingleContainerService) GetStatus(ctx context.Context) string {
 	status, err := t.GetContainerStatus()
 	if err != nil {
 		t.logger.Debugf("Failed to get container status: %s", err)
-		if strings.Contains(err.Error(), "No such container") {
+		if strings.Contains(err.Error(), "container not found") {
 			if t.IsDisabled() && (t.GetMode() == "" || t.GetMode() == "native") {
 				return "Disabled"
 			}
