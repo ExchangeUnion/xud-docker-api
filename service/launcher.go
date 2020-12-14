@@ -19,6 +19,7 @@ type LauncherAgent struct {
 	running       bool
 	logger        *logrus.Entry
 	statusHistory []SetupStatus
+	state         string
 }
 
 func NewLauncherAgent(network string, logger *logrus.Entry) *LauncherAgent {
@@ -28,6 +29,7 @@ func NewLauncherAgent(network string, logger *logrus.Entry) *LauncherAgent {
 		running:       true,
 		logger:        logger,
 		statusHistory: []SetupStatus{},
+		state:         "",
 	}
 
 	go a.followLog()
@@ -41,6 +43,7 @@ func (t *LauncherAgent) followLog() {
 	c.Stderr = c.Stdout
 
 	go func() {
+		t.state = "attached"
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -57,9 +60,11 @@ func (t *LauncherAgent) followLog() {
 
 func (t *LauncherAgent) handleLine(line string) {
 	if strings.Contains(line, "Waiting for XUD dependencies to be ready") {
+		t.state = "setup"
 		status := SetupStatus{Status: "Waiting for XUD dependencies to be ready", Details: nil}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "LightSync") {
+		t.state = "setup"
 		parts := strings.Split(line, " [LightSync] ")
 		parts = strings.Split(parts[1], " | ")
 		details := map[string]string{}
@@ -70,21 +75,27 @@ func (t *LauncherAgent) handleLine(line string) {
 		}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "Setup wallets") {
+		t.state = "setup"
 		status := SetupStatus{Status: "Setup wallets", Details: nil}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "Create wallets") {
+		t.state = "setup"
 		status := SetupStatus{Status: "Create wallets", Details: nil}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "Restore wallets") {
+		t.state = "setup"
 		status := SetupStatus{Status: "Restore wallets", Details: nil}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "Setup backup location") {
+		t.state = "setup"
 		status := SetupStatus{Status: "Setup backup location", Details: nil}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "Unlock wallets") {
+		t.state = "setup"
 		status := SetupStatus{Status: "Unlock wallets", Details: nil}
 		t.emitStatus(status)
 	} else if strings.Contains(line, "Start shell") {
+		t.state = "attached"
 		status := SetupStatus{Status: "Done", Details: nil}
 		t.emitStatus(status)
 		//t.statusHistory = []SetupStatus{}
@@ -129,4 +140,8 @@ func (t *LauncherAgent) subscribeSetupStatus(history int) (<-chan SetupStatus, f
 	}
 
 	return ch, cancel, h
+}
+
+func (t *LauncherAgent) GetState() string {
+	return t.state
 }

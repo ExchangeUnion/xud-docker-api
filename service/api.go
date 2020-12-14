@@ -53,7 +53,8 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 				utils.JsonError(c, err.Error(), http.StatusNotFound)
 				return
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx := context.WithValue(context.Background(), "LauncherState", t.LauncherAgent.GetState())
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 			status := s.GetStatus(ctx)
 			c.JSON(http.StatusOK, ServiceStatus{Service: service, Status: status})

@@ -100,7 +100,12 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to create service manager: %s", err)
 	}
-	defer manager.Close()
+	defer func() {
+		err := manager.Close()
+		if err != nil {
+			logger.Fatalf("Failed to close service manager: %s", err)
+		}
+	}()
 
 	server, err := NewSioServer(network)
 	sioServer = server
@@ -112,7 +117,12 @@ func main() {
 
 	go func() {
 		err := server.Serve()
-		defer server.Close()
+		defer func() {
+			err := server.Close()
+			if err != nil {
+				logger.Fatalf("Failed to close socket.io server: %s", err)
+			}
+		}()
 		if err != nil {
 			logger.Fatal("Failed to start socket.io server")
 		}

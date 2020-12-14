@@ -167,7 +167,8 @@ func (t *Manager) GetStatus() map[string]string {
 	for _, svc := range t.services {
 		s := svc
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx := context.WithValue(context.Background(), "LauncherState", t.LauncherAgent.GetState())
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 			status := s.GetStatus(ctx)
 			t.logger.Debugf("[Status] %s: %s", s.GetName(), status)
@@ -202,10 +203,14 @@ type ServiceStatus struct {
 	Status  string `json:"status"`
 }
 
-func (t *Manager) Close() {
+func (t *Manager) Close() error {
 	for _, s := range t.services {
-		s.Close()
+		err := s.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close service %s: %s", s.GetName(), err)
+		}
 	}
+	return nil
 }
 
 func (t *Manager) id2name(id string) string {

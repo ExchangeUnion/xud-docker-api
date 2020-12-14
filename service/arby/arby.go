@@ -28,6 +28,9 @@ func New(
 func (t *Service) GetStatus(ctx context.Context) string {
 	status := t.SingleContainerService.GetStatus(ctx)
 	if status != "Container running" {
+		if ctx.Value("LauncherState") == "setup" {
+			return "Waiting for sync"
+		}
 		return status
 	}
 

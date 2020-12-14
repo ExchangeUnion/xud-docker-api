@@ -129,6 +129,9 @@ func syncingText(current int64, total int64) string {
 	} else {
 		p = 0
 	}
+	if total == current {
+		return "Synced 100%. Waiting for wallet creation."
+	}
 	return fmt.Sprintf("Syncing %.2f%% (%d/%d)", p, current, total)
 }
 
