@@ -36,12 +36,30 @@ type RpcClient struct {
 	service *core.SingleContainerService
 }
 
+type GrpcParams struct {
+	Host     string
+	Port     uint16
+	TlsCert  string
+	Macaroon string
+}
+
+func parseGrpcParams(config map[string]interface{}) GrpcParams {
+	var p GrpcParams
+
+	p.Host = config["host"].(string)
+	p.Port = uint16(config["port"].(float64))
+	p.TlsCert = config["tlsCert"].(string)
+	p.Macaroon = config["macaroon"].(string)
+
+	return p
+}
+
 func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService) *RpcClient {
-	host := config["host"].(string)
-	btcPort := uint16(config["btcPort"].(float64))
-	ltcPort := uint16(config["ltcPort"].(float64))
-	tlsCert := config["tlsCert"].(string)
-	macaroon := config["macaroon"].(string)
+	bitcoin := config["bitcoin"].(map[string]interface{})
+	litecoin := config["litecoin"].(map[string]interface{})
+
+	btcParams := parseGrpcParams(bitcoin)
+	ltcParams := parseGrpcParams(litecoin)
 
 	c := &RpcClient{
 		btcConn:   nil,
@@ -55,7 +73,7 @@ func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService)
 		service: service,
 	}
 
-	go c.lazyInit(host, btcPort, ltcPort, tlsCert, macaroon)
+	go c.lazyInit(btcParams, ltcParams)
 
 	return c
 }
@@ -64,13 +82,10 @@ func (t *RpcClient) createClient(
 	client *pb.BoltzClient,
 	_conn **grpc.ClientConn,
 	mutex *sync.RWMutex,
-	host string,
-	port uint16,
-	tlsCert string,
-	macaroon string,
+	params GrpcParams,
 ) {
 	for {
-		creds, err := credentials.NewClientTLSFromFile(tlsCert, "localhost")
+		creds, err := credentials.NewClientTLSFromFile(params.TlsCert, "localhost")
 		if err != nil {
 			t.logger.Warnf("Failed to create gRPC TLS credentials: %s", err)
 			time.Sleep(RpcRetryDelay)
@@ -81,18 +96,18 @@ func (t *RpcClient) createClient(
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 		opts = append(opts, grpc.WithBlock())
 
-		if _, err := os.Stat(macaroon); os.IsNotExist(err) {
-			t.logger.Warnf("Waiting for %s", macaroon)
+		if _, err := os.Stat(params.Macaroon); os.IsNotExist(err) {
+			t.logger.Warnf("Waiting for %s", params.Macaroon)
 			time.Sleep(RpcRetryDelay)
 			continue
 		}
 
-		opts = append(opts, grpc.WithPerRPCCredentials(&MacaroonCredential{Admin: macaroon}))
+		opts = append(opts, grpc.WithPerRPCCredentials(&MacaroonCredential{Admin: params.Macaroon}))
 
 		t.logger.Debug("Waiting for a running container")
 		t.service.WaitContainerRunning()
 
-		addr := fmt.Sprintf("%s:%d", host, port)
+		addr := fmt.Sprintf("%s:%d", params.Host, params.Port)
 		t.logger.Debugf("Trying to connect with addr=%s", addr)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -116,17 +131,17 @@ func (t *RpcClient) createClient(
 	}
 }
 
-func (t *RpcClient) lazyInit(host string, btcPort uint16, ltcPort uint16, tlsCert string, macaroon string) {
+func (t *RpcClient) lazyInit(btcParams GrpcParams, ltcParams GrpcParams) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
-		t.createClient(&t.btcClient, &t.btcConn, t.btcMutex, host, btcPort, tlsCert, macaroon)
+		t.createClient(&t.btcClient, &t.btcConn, t.btcMutex, btcParams)
 		wg.Done()
 	}()
 
 	go func() {
-		t.createClient(&t.ltcClient, &t.ltcConn, t.ltcMutex, host, ltcPort, tlsCert, macaroon)
+		t.createClient(&t.ltcClient, &t.ltcConn, t.ltcMutex, ltcParams)
 		wg.Done()
 	}()
 
