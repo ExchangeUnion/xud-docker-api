@@ -161,6 +161,9 @@ func (t *Service) GetStatus(ctx context.Context) string {
 	}
 
 	status := t.SingleContainerService.GetStatus(ctx)
+	if status == "Disabled" {
+		return status
+	}
 	if status != "Container running" {
 		return status
 	}

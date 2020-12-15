@@ -85,6 +85,9 @@ func (t *Service) GetStatus(ctx context.Context) string {
 	switch mode {
 	case Native:
 		status := t.SingleContainerService.GetStatus(ctx)
+		if status == "Disabled" {
+			return status
+		}
 		if status != "Container running" {
 			return status
 		}
