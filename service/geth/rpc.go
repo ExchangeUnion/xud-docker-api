@@ -2,7 +2,7 @@ package geth
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
+	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ybbus/jsonrpc"
 	"strconv"
 	"strings"

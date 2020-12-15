@@ -15,13 +15,7 @@ type AbstractService struct {
 }
 
 func NewAbstractService(name string, services map[string]Service) *AbstractService {
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: false,
-	})
-
-	logger := log.WithField("service", name)
+	logger := logrus.NewEntry(logrus.StandardLogger()).WithField("service", name)
 
 	return &AbstractService{
 		name:     name,
@@ -34,10 +28,6 @@ func NewAbstractService(name string, services map[string]Service) *AbstractServi
 
 func (t *AbstractService) GetName() string {
 	return t.name
-}
-
-func (t *AbstractService) GetStatus() (string, error) {
-	return "Unknown", nil
 }
 
 func (t *AbstractService) ConfigureRouter(r *gin.RouterGroup) {

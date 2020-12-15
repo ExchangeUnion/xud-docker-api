@@ -2,7 +2,7 @@ package lnd
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	"github.com/sirupsen/logrus"
 	"regexp"
 	"strconv"
@@ -60,7 +60,7 @@ func initRegex(containerName string) (*regexp.Regexp, *regexp.Regexp, *regexp.Re
 	return p, p0, p1, p2
 }
 
-func NewLogWatcher(containerName string, logger *logrus.Entry, service *core.SingleContainerService) *LogWatcher {
+func NewLogWatcher(containerName string, service *core.SingleContainerService) *LogWatcher {
 	p, p0, p1, p2 := initRegex(containerName)
 	w := &LogWatcher{
 		p:               p,
@@ -68,7 +68,7 @@ func NewLogWatcher(containerName string, logger *logrus.Entry, service *core.Sin
 		p1:              p1,
 		p2:              p2,
 		neutrinoSyncing: NeutrinoSyncing{current: 0, total: 0, done: false},
-		logger:          logger,
+		logger:          service.GetLogger().WithField("scope", "LogWatcher"),
 		service:         service,
 	}
 	return w
@@ -79,7 +79,7 @@ func (t *LogWatcher) getLogs() <-chan string {
 		lines, stop, err := t.service.FollowLogs2()
 		t.stop = stop
 		if err != nil {
-			t.logger.Error("Failed to follow logs: %s (will retry in 3 seconds)", err)
+			t.logger.Error("Failed to follow logs: %s", err)
 			time.Sleep(3 * time.Second)
 		}
 		return lines

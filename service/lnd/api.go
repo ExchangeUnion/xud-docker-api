@@ -2,7 +2,7 @@ package lnd
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
+	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/protobuf/jsonpb"
 	"net/http"

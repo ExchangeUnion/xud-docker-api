@@ -1,10 +1,18 @@
 package bitcoind
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
+	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ybbus/jsonrpc"
+	"net/http"
+	"time"
+)
+
+var (
+	HttpRequestTimeout = 3 * time.Second
 )
 
 type Fork struct {
@@ -39,6 +47,9 @@ func NewRpcClient(config config.RpcConfig) *RpcClient {
 
 	addr := fmt.Sprintf("http://%s:%d", host, port)
 	client := jsonrpc.NewClientWithOpts(addr, &jsonrpc.RPCClientOpts{
+		HTTPClient: &http.Client{
+			Timeout: HttpRequestTimeout,
+		},
 		CustomHeaders: map[string]string{
 			"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("xu"+":"+"xu")),
 		},
@@ -53,10 +64,16 @@ func (t *RpcClient) Close() error {
 	return nil
 }
 
-func (t *RpcClient) GetBlockchainInfo() (*jsonrpc.RPCResponse, error) {
-	response, err := t.client.Call("getblockchaininfo")
-	if err != nil {
-		return nil, err
+func (t *RpcClient) GetBlockchainInfo(ctx context.Context) (*jsonrpc.RPCResponse, error) {
+	// TODO jsonrpc call with context
+	select {
+	case <-ctx.Done():
+		return nil, errors.New("cancelled by context")
+	default:
+		response, err := t.client.Call("getblockchaininfo")
+		if err != nil {
+			return nil, err
+		}
+		return response, nil
 	}
-	return response, nil
 }

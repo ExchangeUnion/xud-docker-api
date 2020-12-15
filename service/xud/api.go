@@ -1,8 +1,10 @@
 package xud
 
 import (
+	"context"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"
@@ -13,21 +15,28 @@ import (
 
 func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 	r.GET("/v1/xud/getinfo", func(c *gin.Context) {
-		resp, err := t.GetInfo()
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetInfo(ctx)
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
 	r.GET("/v1/xud/getbalance", func(c *gin.Context) {
-		resp, err := t.GetBalance("")
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetBalance(ctx, "")
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
 	r.GET("/v1/xud/getbalance/:currency", func(c *gin.Context) {
-		resp, err := t.GetBalance(c.Param("currency"))
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetBalance(ctx, c.Param("currency"))
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
 	r.GET("/v1/xud/tradehistory", func(c *gin.Context) {
+
 		limitStr := c.DefaultQuery("limit", "0")
 		limit, err := strconv.ParseUint(limitStr, 10, 32)
 		if err != nil {
@@ -40,17 +49,23 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 			utils.JsonError(c, msg, http.StatusBadRequest)
 			return
 		}
-		resp, err := t.GetTradeHistory(uint32(limit))
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetTradeHistory(ctx, uint32(limit))
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
 	r.GET("/v1/xud/tradinglimits", func(c *gin.Context) {
-		resp, err := t.GetTradingLimits("")
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetTradingLimits(ctx, "")
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
 	r.GET("/v1/xud/tradinglimits/:currency", func(c *gin.Context) {
-		resp, err := t.GetTradingLimits(c.Param("currency"))
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetTradingLimits(ctx, c.Param("currency"))
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
@@ -60,7 +75,9 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusBadRequest)
 		}
-		resp, err := t.CreateNode(params.Password)
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.CreateNode(ctx, params.Password)
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
@@ -75,7 +92,10 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		lndLTC, err := ioutil.ReadFile(filepath.Join(params.BackupDir, "lnd-LTC"))
 		xud, err := ioutil.ReadFile(filepath.Join(params.BackupDir, "xud"))
 
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
 		resp, err := t.RestoreNode(
+			ctx,
 			params.Password,
 			strings.Split(params.SeedMnemonic, " "),
 			map[string][]byte{
@@ -93,7 +113,9 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		if err != nil {
 			utils.JsonError(c, err.Error(), http.StatusBadRequest)
 		}
-		resp, err := t.UnlockNode(params.Password)
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.UnlockNode(ctx, params.Password)
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 }

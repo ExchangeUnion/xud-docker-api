@@ -1,11 +1,12 @@
 package geth
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/connext"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/connext"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 	"github.com/ybbus/jsonrpc"
 	"strings"
@@ -109,46 +110,46 @@ func (t *Service) getMode() (Mode, error) {
 	}
 }
 
-func (t *Service) getExternalStatus() (string, error) {
+func (t *Service) getExternalStatus() string {
 	provider, err := t.getProvider()
 	if err != nil {
-		return "No provider", err
+		return "No provider"
 	}
 	if t.checkEthRpc(provider) {
-		return "Ready (connected to external)", nil
+		return "Ready (connected to external)"
 	} else {
-		return "Unavailable (connection to external failed)", nil
+		return "Unavailable (connection to external failed)"
 	}
 }
 
-func (t *Service) getInfuraStatus() (string, error) {
+func (t *Service) getInfuraStatus() string {
 	provider, err := t.getProvider()
 	if err != nil {
-		return "No provider", err
+		return "No provider"
 	}
 	if t.checkEthRpc(provider) {
-		return "Ready (connected to Infura)", nil
+		return "Ready (connected to Infura)"
 	} else {
-		return "Unavailable (connection to Infura failed)", nil
+		return "Unavailable (connection to Infura failed)"
 	}
 }
 
-func (t *Service) getLightStatus() (string, error) {
+func (t *Service) getLightStatus() string {
 	provider, err := t.getProvider()
 	if err != nil {
-		return "No provider", err
+		return "No provider"
 	}
 	if t.checkEthRpc(provider) {
-		return "Ready (light mode)", nil
+		return "Ready (light mode)"
 	} else {
-		return "Unavailable (light mode failed)", nil
+		return "Unavailable (light mode failed)"
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
+func (t *Service) GetStatus(ctx context.Context) string {
 	mode, err := t.getMode()
 	if err != nil {
-		return "", err
+		return fmt.Sprintf("Error: %s", err)
 	}
 
 	if mode == External {
@@ -159,33 +160,35 @@ func (t *Service) GetStatus() (string, error) {
 		return t.getLightStatus()
 	}
 
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
+	status := t.SingleContainerService.GetStatus(ctx)
+	if status == "Disabled" {
+		return status
 	}
-	if status == "Container running" {
-		syncing, err := t.EthSyncing()
-		if err != nil {
-			return "Waiting for geth to come up...", err
-		}
-		if syncing != nil {
-			current := syncing.CurrentBlock
-			total := syncing.HighestBlock
-			p := float32(current) / float32(total) * 100.0
-			return fmt.Sprintf("Syncing %.2f%% (%d/%d)", p, current, total), nil
-		} else {
-			blockNumber, err := t.EthBlockNumber()
-			if err != nil {
-				return "Waiting for geth to come up...", err
-			}
-			if blockNumber == 0 {
-				return "Waiting for sync", nil
-			} else {
-				return "Ready", nil
-			}
-		}
+	if status != "Container running" {
+		return status
+	}
+
+	// container is running
+
+	syncing, err := t.EthSyncing()
+	if err != nil {
+		return "Waiting for geth to come up..."
+	}
+	if syncing != nil {
+		current := syncing.CurrentBlock
+		total := syncing.HighestBlock
+		p := float32(current) / float32(total) * 100.0
+		return fmt.Sprintf("Syncing %.2f%% (%d/%d)", p, current, total)
 	} else {
-		return status, nil
+		blockNumber, err := t.EthBlockNumber()
+		if err != nil {
+			return "Waiting for geth to come up..."
+		}
+		if blockNumber == 0 {
+			return "Waiting for sync"
+		} else {
+			return "Ready"
+		}
 	}
 }
 
@@ -193,4 +196,3 @@ func (t *Service) Close() error {
 	_ = t.RpcClient.Close()
 	return nil
 }
-

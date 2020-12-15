@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service"
+	"github.com/ExchangeUnion/xud-docker-api/service"
 	"github.com/docker/docker/pkg/homedir"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -21,9 +21,13 @@ var (
 	sioServer *socketio.Server
 )
 
-func initLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+func initLogger() *logrus.Entry {
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+	logrus.SetOutput(os.Stdout)
+	logger := logrus.NewEntry(logrus.StandardLogger())
 	return logger
 }
 
@@ -96,7 +100,12 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to create service manager: %s", err)
 	}
-	defer manager.Close()
+	defer func() {
+		err := manager.Close()
+		if err != nil {
+			logger.Fatalf("Failed to close service manager: %s", err)
+		}
+	}()
 
 	server, err := NewSioServer(network)
 	sioServer = server
@@ -108,7 +117,12 @@ func main() {
 
 	go func() {
 		err := server.Serve()
-		defer server.Close()
+		defer func() {
+			err := server.Close()
+			if err != nil {
+				logger.Fatalf("Failed to close socket.io server: %s", err)
+			}
+		}()
 		if err != nil {
 			logger.Fatal("Failed to start socket.io server")
 		}

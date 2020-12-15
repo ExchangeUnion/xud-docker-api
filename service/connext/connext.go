@@ -1,10 +1,11 @@
 package connext
 
 import (
+	"context"
 	"errors"
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/xud"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
+	"github.com/ExchangeUnion/xud-docker-api/service/xud"
 	docker "github.com/docker/docker/client"
 )
 
@@ -19,35 +20,39 @@ func New(
 	containerName string,
 	dockerClient *docker.Client,
 	rpcConfig config.RpcConfig,
-	) *Service {
+) *Service {
+	base := core.NewSingleContainerService(name, services, containerName, dockerClient)
+
 	return &Service{
-		SingleContainerService: core.NewSingleContainerService(name, services, containerName, dockerClient),
-		RpcClient: NewRpcClient(rpcConfig),
+		SingleContainerService: base,
+		RpcClient:              NewRpcClient(rpcConfig, base),
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
+	if status == "Disabled" {
+		return status
 	}
-	if status == "Container running" {
-		svc := t.GetService("xud")
-		if svc != nil {
-			xudSvc := svc.(*xud.Service)
-			info, err := xudSvc.GetInfo()
-			if err == nil {
-				return info.Connext.Status, nil
-			}
-		}
+	if status != "Container running" {
+		return status
+	}
 
-		if t.IsHealthy() {
-			return "Ready", nil
-		} else {
-			return "Starting...", nil
+	// container is running
+
+	svc := t.GetService("xud")
+	if svc != nil {
+		xudSvc := svc.(*xud.Service)
+		info, err := xudSvc.GetInfo(ctx)
+		if err == nil {
+			return info.Connext.Status
 		}
+	}
+
+	if t.IsHealthy(ctx) {
+		return "Ready"
 	} else {
-		return status, nil
+		return "Starting..."
 	}
 }
 
@@ -63,7 +68,9 @@ func (t *Service) GetEthProvider() (string, error) {
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		return err
+	}
 	return nil
 }
-

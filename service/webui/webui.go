@@ -1,7 +1,8 @@
 package webui
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"context"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 )
 
@@ -20,16 +21,17 @@ func New(
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
+	if status == "Disabled" {
+		return status
 	}
-	if status == "Container running" {
-		return "Ready", nil
-	} else {
-		return status, nil
+	if status != "Container running" {
+		return status
 	}
+
+	// container is running
+	return "Ready"
 }
 
 func (t *Service) Close() error {

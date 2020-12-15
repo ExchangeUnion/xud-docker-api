@@ -1,15 +1,15 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ExchangeUnion/xud-docker-api-poc/utils"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
-	"github.com/hpcloud/tail"
 	"io"
 	"net/http"
-	"strings"
 )
 
 func (t *Manager) ConfigureRouter(r *gin.Engine) {
@@ -53,10 +53,10 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 				utils.JsonError(c, err.Error(), http.StatusNotFound)
 				return
 			}
-			status, err := s.GetStatus()
-			if err != nil {
-				status = fmt.Sprintf("Error: %s", err)
-			}
+			ctx := context.WithValue(context.Background(), "LauncherState", t.LauncherAgent.GetState())
+			ctx, cancel := context.WithTimeout(ctx, config.DefaultApiTimeout)
+			defer cancel()
+			status := s.GetStatus(ctx)
 			c.JSON(http.StatusOK, ServiceStatus{Service: service, Status: status})
 		})
 
@@ -85,70 +85,35 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 		})
 
 		api.GET("/v1/setup-status", func(c *gin.Context) {
+
+			statusChan, cancel, history := t.subscribeSetupStatus(-1)
+
 			c.Stream(func(w io.Writer) bool {
-				logfile := fmt.Sprintf("/root/network/logs/%s.log", t.network)
-				t, err := tail.TailFile(logfile, tail.Config{
-					Follow: true,
-					ReOpen: true})
-				if err != nil {
-					return false
+				for _, status := range history {
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+
+					if status.Status == "Done" {
+						cancel()
+						return false
+					}
 				}
-				for line := range t.Lines {
-					if strings.Contains(line.Text, "Waiting for XUD dependencies to be ready") {
-						status := SetupStatus{Status: "Waiting for XUD dependencies to be ready", Details: nil}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "LightSync") {
-						parts := strings.Split(line.Text, " [LightSync] ")
-						parts = strings.Split(parts[1], " | ")
-						details := map[string]string{}
-						status := SetupStatus{Status: "Syncing light clients", Details: details}
-						for _, p := range parts {
-							kv := strings.Split(p, ": ")
-							details[kv[0]] = kv[1]
-						}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "Setup wallets") {
-						status := SetupStatus{Status: "Setup wallets", Details: nil}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "Create wallets") {
-						status := SetupStatus{Status: "Create wallets", Details: nil}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "Restore wallets") {
-						status := SetupStatus{Status: "Restore wallets", Details: nil}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "Setup backup location") {
-						status := SetupStatus{Status: "Setup backup location", Details: nil}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "Unlock wallets") {
-						status := SetupStatus{Status: "Unlock wallets", Details: nil}
-						j, _ := json.Marshal(status)
-						c.Writer.Write(j)
-						c.Writer.Write([]byte("\n"))
-						c.Writer.Flush()
-					} else if strings.Contains(line.Text, "Start shell") {
-						break
+				for status := range statusChan {
+					j, _ := json.Marshal(status)
+					c.Writer.Write(j)
+					c.Writer.Write([]byte("\n"))
+					c.Writer.Flush()
+
+					if status.Status == "Done" {
+						cancel()
+						return false
 					}
 				}
 				return false
 			})
+
 		})
 	}
 

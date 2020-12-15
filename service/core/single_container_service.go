@@ -19,9 +19,11 @@ type SingleContainerService struct {
 
 	containerName string
 	dockerClient  *docker.Client
-	mutex         *sync.Mutex
-	container     *types.ContainerJSON
-	cond          *sync.Cond
+
+	container   *types.ContainerJSON
+	mutex       *sync.Mutex
+	condCreated *sync.Cond
+	condRunning *sync.Cond
 }
 
 func NewSingleContainerService(
@@ -31,15 +33,19 @@ func NewSingleContainerService(
 	dockerClient *docker.Client,
 ) *SingleContainerService {
 
-	mutex := &sync.Mutex{}
+	mutex := &sync.Mutex{} // guard container
+	condCreated := sync.NewCond(mutex)
+	condRunning := sync.NewCond(mutex)
 
 	s := &SingleContainerService{
 		AbstractService: NewAbstractService(name, services),
 		containerName:   containerName,
 		dockerClient:    dockerClient,
-		mutex:           mutex,
-		container:       nil,
-		cond:            sync.NewCond(mutex),
+
+		container:   nil,
+		mutex:       mutex,
+		condCreated: condCreated,
+		condRunning: condRunning,
 	}
 
 	go s.initContainer()
@@ -47,32 +53,24 @@ func NewSingleContainerService(
 	return s
 }
 
-func (t *SingleContainerService) getContainer() (*types.ContainerJSON, error) {
-	c, err := t.dockerClient.ContainerInspect(context.Background(), t.containerName)
-	if err != nil {
-		return nil, err
-	}
-	return &c, err
-}
-
 // GetStatus implements Service interface
-func (t *SingleContainerService) GetStatus() (string, error) {
+func (t *SingleContainerService) GetStatus(ctx context.Context) string {
 	status, err := t.GetContainerStatus()
 	if err != nil {
 		t.logger.Debugf("Failed to get container status: %s", err)
-		if strings.Contains(err.Error(), "No such container") {
+		if strings.Contains(err.Error(), "container not found") {
 			if t.IsDisabled() && (t.GetMode() == "" || t.GetMode() == "native") {
-				return "Disabled", nil
+				return "Disabled"
 			}
-			return "Container missing", nil
+			return "Container missing"
 		}
-		return "", err
+		return fmt.Sprintf("Error: %s", err)
 	}
-	return fmt.Sprintf("Container %s", status), nil
+	return fmt.Sprintf("Container %s", status)
 }
 
 func (t *SingleContainerService) GetContainerStatus() (string, error) {
-	c, err := t.getContainer()
+	c, err := t.GetContainer()
 	if err != nil {
 		return "", err
 	}
@@ -80,12 +78,26 @@ func (t *SingleContainerService) GetContainerStatus() (string, error) {
 }
 
 func (t *SingleContainerService) GetContainerId() string {
-	c, err := t.getContainer()
+	c, err := t.GetContainer()
 	if err != nil {
-		t.logger.Debugf("Failed to get container %s ID: %s", t.containerName, err)
 		return ""
 	}
 	return c.ID
+}
+
+func (t *SingleContainerService) Getenv(key string) (string, error) {
+	c, err := t.GetContainer()
+	if err != nil {
+		return "", err
+	}
+	prefix := key + "="
+	for _, env := range c.Config.Env {
+		if strings.HasPrefix(env, prefix) {
+			value := strings.Replace(env, prefix, "", 1)
+			return value, nil
+		}
+	}
+	return "", errors.New("no such key: " + key)
 }
 
 func (t *SingleContainerService) demuxLogsReader(reader io.Reader) io.Reader {
@@ -167,12 +179,12 @@ func (t *SingleContainerService) FollowLogs2() (<-chan string, func(), error) {
 	var running = true
 
 	go func() {
-		c := t.WaitContainer()
-		startedAt := c.State.StartedAt
 		for running {
+			c := t.WaitContainerRunning()
+			startedAt := c.State.StartedAt
 			lines, stop, err := t.FollowLogs(startedAt, "")
 			if err != nil {
-				t.logger.Error("Failed to follow logs: %s (will retry in 3 seconds)", err)
+				t.logger.Error("Failed to follow logs: %s", err)
 				time.Sleep(3 * time.Second)
 			}
 			for line := range lines {
@@ -187,21 +199,6 @@ func (t *SingleContainerService) FollowLogs2() (<-chan string, func(), error) {
 	}()
 
 	return ch, func() { running = false }, nil
-}
-
-func (t *SingleContainerService) Getenv(key string) (string, error) {
-	c, err := t.getContainer()
-	if err != nil {
-		return "", err
-	}
-	prefix := key + "="
-	for _, env := range c.Config.Env {
-		if strings.HasPrefix(env, prefix) {
-			value := strings.Replace(env, prefix, "", 1)
-			return value, nil
-		}
-	}
-	return "", errors.New("no such key: " + key)
 }
 
 func (t *SingleContainerService) Exec1(command []string) (string, error) {
@@ -287,59 +284,86 @@ func (t *SingleContainerService) ExecInteractive(command []string) (string, io.R
 	return execId, r, attachResp.Conn, nil
 }
 
-func (t *SingleContainerService) initContainer() {
-	c, err := t.getContainer()
-	if err != nil {
-		t.logger.Debugf("Failed to get container %s while initializing", t.containerName)
+func (t *SingleContainerService) GetContainer() (*types.ContainerJSON, error) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	if t.container == nil {
+		return nil, errors.New("container not found")
 	}
-	t.setContainer(c)
-}
-
-func (t *SingleContainerService) setContainer(c *types.ContainerJSON) {
-	t.cond.L.Lock()
-	t.container = c
-	if c != nil {
-		t.cond.Broadcast()
-	}
-	t.cond.L.Unlock()
+	return t.container, nil
 }
 
 func (t *SingleContainerService) WaitContainer() *types.ContainerJSON {
-	t.cond.L.Lock()
-	defer t.cond.L.Unlock()
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	for t.container == nil {
-		t.cond.Wait()
+		t.condCreated.Wait()
 	}
 	return t.container
 }
 
-func (t *SingleContainerService) OnEvent(type_ string) {
+func (t *SingleContainerService) WaitContainerRunning() *types.ContainerJSON {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	for t.container == nil || t.container.State.Status != "running" {
+		t.condRunning.Wait()
+	}
+	return t.container
+}
+
+func (t *SingleContainerService) setContainer(c *types.ContainerJSON) {
+	t.mutex.Lock()
+	t.container = c
+	if c != nil {
+		t.condCreated.Broadcast()
+		if c.State.Status == "running" {
+			t.condRunning.Broadcast()
+		}
+	}
+	t.mutex.Unlock()
+}
+
+func (t *SingleContainerService) initContainer() {
+	c, err := t.dockerClient.ContainerInspect(context.Background(), t.containerName)
+	if err != nil {
+		t.logger.Debugf("Failed to inspect container %s: %s", t.containerName, err)
+		return
+	}
+	t.setContainer(&c)
+}
+
+func (t *SingleContainerService) OnEvent(kind string) {
 	var err error
-	var c *types.ContainerJSON
-	switch type_ {
+	var c types.ContainerJSON
+	logger := t.logger.WithField("event", kind)
+
+	switch kind {
 	case "create":
-		t.logger.Debugf("[Event] Container %s created", t.containerName)
-		c, err = t.getContainer()
+		logger.Debugf("Container created")
+		c, err = t.dockerClient.ContainerInspect(context.Background(), t.containerName)
 		if err != nil {
-			t.logger.Error("Failed to get container while CREATE event received: %s", err)
+			t.logger.Errorf("Failed to inspect container %s: %s", t.containerName, err)
+			return
 		}
-		t.setContainer(c)
+		t.setContainer(&c)
 	case "start":
-		t.logger.Debugf("[Event] Container %s started", t.containerName)
-		c, err = t.getContainer()
+		logger.Debugf("Container started")
+		c, err = t.dockerClient.ContainerInspect(context.Background(), t.containerName)
 		if err != nil {
-			t.logger.Error("Failed to get container while START event received: %s", err)
+			t.logger.Errorf("Failed to inspect container %s: %s", t.containerName, err)
+			return
 		}
-		t.setContainer(c)
+		t.setContainer(&c)
 	case "die":
-		t.logger.Debugf("[Event] Container %s died", t.containerName)
-		c, err = t.getContainer()
+		logger.Debugf("Container died")
+		c, err = t.dockerClient.ContainerInspect(context.Background(), t.containerName)
 		if err != nil {
-			t.logger.Error("Failed to get container while DIE event received: %s", err)
+			t.logger.Errorf("Failed to inspect container %s: %s", t.containerName, err)
+			return
 		}
-		t.setContainer(c)
+		t.setContainer(&c)
 	case "destroy":
-		t.logger.Debugf("[Event] Container %s destroyed", t.containerName)
+		t.logger.Debugf("Container destroyed")
 		t.setContainer(nil)
 	}
 }

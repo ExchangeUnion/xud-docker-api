@@ -1,8 +1,9 @@
 package arby
 
 import (
-	"github.com/ExchangeUnion/xud-docker-api-poc/config"
-	"github.com/ExchangeUnion/xud-docker-api-poc/service/core"
+	"context"
+	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	docker "github.com/docker/docker/client"
 )
 
@@ -24,19 +25,27 @@ func New(
 	}
 }
 
-func (t *Service) GetStatus() (string, error) {
-	status, err := t.SingleContainerService.GetStatus()
-	if err != nil {
-		return "", err
+func (t *Service) GetStatus(ctx context.Context) string {
+	status := t.SingleContainerService.GetStatus(ctx)
+	if status == "Disabled" {
+		return status
 	}
-	if status == "Container running" {
-		return "Ready", nil
-	} else {
-		return status, nil
+	if status != "Container running" {
+		if ctx.Value("LauncherState") == "setup" {
+			return "Waiting for sync"
+		}
+		return status
 	}
+
+	// container is running
+
+	return "Ready"
 }
 
 func (t *Service) Close() error {
-	_ = t.RpcClient.Close()
+	err := t.RpcClient.Close()
+	if err != nil {
+		t.GetLogger().Errorf("Failed to close RPC client: %s", err)
+	}
 	return nil
 }
