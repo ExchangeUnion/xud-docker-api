@@ -79,7 +79,7 @@ func (t *LogWatcher) getLogs() <-chan string {
 		lines, stop, err := t.service.FollowLogs2()
 		t.stop = stop
 		if err != nil {
-			t.logger.Error("Failed to follow logs: %s (will retry in 3 seconds)", err)
+			t.logger.Error("Failed to follow logs: %s", err)
 			time.Sleep(3 * time.Second)
 		}
 		return lines

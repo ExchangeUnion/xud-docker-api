@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	RetryDelay = 3 * time.Second
+	RetryDelay         = 3 * time.Second
+	GrpcConnectTimeout = 3 * time.Second
 )
 
 var (
@@ -70,7 +71,7 @@ func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string) {
 		t.logger.Debug("Waiting for a running container")
 		t.service.WaitContainerRunning()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), GrpcConnectTimeout)
 		addr := fmt.Sprintf("%s:%d", host, port)
 		t.logger.Debugf("Trying to connect with addr=%s tlsCert=%s macaroon=%s", addr, tlsCert)
 		conn, err := grpc.DialContext(ctx, addr, opts...)

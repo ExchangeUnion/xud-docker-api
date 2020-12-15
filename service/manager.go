@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ExchangeUnion/xud-docker-api/service/arby"
 	"github.com/ExchangeUnion/xud-docker-api/service/bitcoind"
 	"github.com/ExchangeUnion/xud-docker-api/service/boltz"
@@ -20,7 +21,6 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
-	"time"
 )
 
 var (
@@ -168,7 +168,7 @@ func (t *Manager) GetStatus() map[string]string {
 		s := svc
 		go func() {
 			ctx := context.WithValue(context.Background(), "LauncherState", t.LauncherAgent.GetState())
-			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, config.DefaultApiTimeout)
 			defer cancel()
 			status := s.GetStatus(ctx)
 			t.logger.Debugf("[Status] %s: %s", s.GetName(), status)

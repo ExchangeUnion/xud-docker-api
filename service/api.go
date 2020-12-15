@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
-	"time"
 )
 
 func (t *Manager) ConfigureRouter(r *gin.Engine) {
@@ -54,7 +54,7 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 				return
 			}
 			ctx := context.WithValue(context.Background(), "LauncherState", t.LauncherAgent.GetState())
-			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, config.DefaultApiTimeout)
 			defer cancel()
 			status := s.GetStatus(ctx)
 			c.JSON(http.StatusOK, ServiceStatus{Service: service, Status: status})

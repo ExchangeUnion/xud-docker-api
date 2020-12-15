@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+var (
+	HttpRequestTimeout = 3 * time.Second
+)
+
 type Fork struct {
 	Type   string
 	Active bool
@@ -44,7 +48,7 @@ func NewRpcClient(config config.RpcConfig) *RpcClient {
 	addr := fmt.Sprintf("http://%s:%d", host, port)
 	client := jsonrpc.NewClientWithOpts(addr, &jsonrpc.RPCClientOpts{
 		HTTPClient: &http.Client{
-			Timeout: 3 * time.Second,
+			Timeout: HttpRequestTimeout,
 		},
 		CustomHeaders: map[string]string{
 			"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("xu"+":"+"xu")),
