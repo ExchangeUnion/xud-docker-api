@@ -9,6 +9,8 @@ import (
 	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -35,10 +37,11 @@ type RpcClient struct {
 }
 
 func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService) *RpcClient {
-
 	host := config["host"].(string)
 	btcPort := uint16(config["btcPort"].(float64))
 	ltcPort := uint16(config["ltcPort"].(float64))
+	tlsCert := config["tlsCert"].(string)
+	macaroon := config["macaroon"].(string)
 
 	c := &RpcClient{
 		btcConn:   nil,
@@ -52,16 +55,39 @@ func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService)
 		service: service,
 	}
 
-	go c.lazyInit(host, btcPort, ltcPort)
+	go c.lazyInit(host, btcPort, ltcPort, tlsCert, macaroon)
 
 	return c
 }
 
-func (t *RpcClient) createClient(client *pb.BoltzClient, _conn **grpc.ClientConn, mutex *sync.RWMutex, host string, port uint16) {
+func (t *RpcClient) createClient(
+	client *pb.BoltzClient,
+	_conn **grpc.ClientConn,
+	mutex *sync.RWMutex,
+	host string,
+	port uint16,
+	tlsCert string,
+	macaroon string,
+) {
 	for {
+		creds, err := credentials.NewClientTLSFromFile(tlsCert, "localhost")
+		if err != nil {
+			t.logger.Warnf("Failed to create gRPC TLS credentials: %s", err)
+			time.Sleep(RpcRetryDelay)
+			continue
+		}
+
 		var opts []grpc.DialOption
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(creds))
 		opts = append(opts, grpc.WithBlock())
+
+		if _, err := os.Stat(macaroon); os.IsNotExist(err) {
+			t.logger.Warnf("Waiting for %s", macaroon)
+			time.Sleep(RpcRetryDelay)
+			continue
+		}
+
+		opts = append(opts, grpc.WithPerRPCCredentials(&MacaroonCredential{Admin: macaroon}))
 
 		t.logger.Debug("Waiting for a running container")
 		t.service.WaitContainerRunning()
@@ -69,9 +95,9 @@ func (t *RpcClient) createClient(client *pb.BoltzClient, _conn **grpc.ClientConn
 		addr := fmt.Sprintf("%s:%d", host, port)
 		t.logger.Debugf("Trying to connect with addr=%s", addr)
 
-		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		conn, err := grpc.DialContext(ctx, addr, opts...)
-		//cancel() // prevent context resource leak
+		cancel() // prevent context resource leak
 		if err != nil {
 			t.logger.Warnf("Failed to create gRPC connection: %s", err)
 			time.Sleep(RpcRetryDelay)
@@ -90,17 +116,17 @@ func (t *RpcClient) createClient(client *pb.BoltzClient, _conn **grpc.ClientConn
 	}
 }
 
-func (t *RpcClient) lazyInit(host string, btcPort uint16, ltcPort uint16) {
+func (t *RpcClient) lazyInit(host string, btcPort uint16, ltcPort uint16, tlsCert string, macaroon string) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
-		t.createClient(&t.btcClient, &t.btcConn, t.btcMutex, host, btcPort)
+		t.createClient(&t.btcClient, &t.btcConn, t.btcMutex, host, btcPort, tlsCert, macaroon)
 		wg.Done()
 	}()
 
 	go func() {
-		t.createClient(&t.ltcClient, &t.ltcConn, t.ltcMutex, host, ltcPort)
+		t.createClient(&t.ltcClient, &t.ltcConn, t.ltcMutex, host, ltcPort, tlsCert, macaroon)
 		wg.Done()
 	}()
 
