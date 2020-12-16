@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ExchangeUnion/xud-docker-api/build"
 	"github.com/ExchangeUnion/xud-docker-api/config"
 	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/contrib/static"
@@ -17,6 +18,9 @@ func (t *Manager) ConfigureRouter(r *gin.Engine) {
 
 	api := r.Group("/api")
 	{
+		api.GET("/v1/version", func(c *gin.Context) {
+			c.JSON(http.StatusOK, fmt.Sprintf("%s-%s", build.Version, build.GitCommit[:7]))
+		})
 		api.GET("/v1/services", func(c *gin.Context) {
 			var result []ServiceEntry
 
