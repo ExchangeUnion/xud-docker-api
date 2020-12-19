@@ -198,3 +198,24 @@ func (t *RpcClient) UnlockNode(ctx context.Context, password string) (*pb.Unlock
 	}
 	return client.UnlockNode(ctx, &req)
 }
+
+func (t *RpcClient) ChangePassword(ctx context.Context, newPassword string, oldPassword string) (*pb.ChangePasswordResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.ChangePasswordRequest{
+		NewPassword: newPassword,
+		OldPassword: oldPassword,
+	}
+	return client.ChangePassword(ctx, &req)
+}
+
+func (t *RpcClient) GetMnemonic(ctx context.Context) (*pb.GetMnemonicResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.GetMnemonicRequest{}
+	return client.GetMnemonic(ctx, &req)
+}

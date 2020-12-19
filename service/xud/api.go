@@ -118,6 +118,25 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		resp, err := t.UnlockNode(ctx, params.Password)
 		utils.HandleProtobufResponse(c, resp, err)
 	})
+
+	r.POST("/v1/xud/changepass", func(c *gin.Context) {
+		var params ChangepasswordParams
+		err := c.BindJSON(&params)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusBadRequest)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.ChangePassword(ctx, params.NewPassword, params.OldPassword)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
+
+	r.GET("/v1/xud/getmnemonic", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.GetMnemonic(ctx)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
 }
 
 type CreateParams struct {
@@ -132,4 +151,9 @@ type RestoreParams struct {
 
 type UnlockParams struct {
 	Password string `json:"password"`
+}
+
+type ChangepasswordParams struct {
+	NewPassword string `json: "newPassword"`
+	OldPassword string `json: "oldPassword"`
 }
