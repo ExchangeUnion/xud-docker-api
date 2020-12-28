@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api/config"
+	pb "github.com/ExchangeUnion/xud-docker-api/service/xud/xudrpc"
 	"github.com/ExchangeUnion/xud-docker-api/utils"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
@@ -137,6 +138,49 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		resp, err := t.GetMnemonic(ctx)
 		utils.HandleProtobufResponse(c, resp, err)
 	})
+
+	r.GET("/v1/xud/listpairs", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.ListPairs(ctx)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
+
+	r.GET("/v1/xud/listorders", func(c *gin.Context) {
+		var params ListOrdersParams
+		err := c.BindQuery(&params)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusBadRequest)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.ListOrders(ctx, params.PairId, pb.ListOrdersRequest_Owner(params.Owner), params.Limit, params.IncludeAliases)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
+
+	r.POST("/v1/xud/placeorder", func(c *gin.Context) {
+		var params PlaceOrderParams
+		err := c.BindJSON(&params)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusBadRequest)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.PlaceOrder(ctx, params.PairId, params.Side, params.Price, params.Quantity, params.OrderId, params.ReplaceOrderId, params.ImmediateOrCancel)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
+
+	r.POST("/v1/xud/removeorder", func(c *gin.Context) {
+		var params RemoveOrderParams
+		err := c.BindJSON(&params)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusBadRequest)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.RemoveOrder(ctx, params.OrderId, params.Quantity)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
 }
 
 type CreateParams struct {
@@ -156,4 +200,26 @@ type UnlockParams struct {
 type ChangepasswordParams struct {
 	NewPassword string `json: "newPassword"`
 	OldPassword string `json: "oldPassword"`
+}
+
+type ListOrdersParams struct {
+	PairId         string `form:"pairId" json:"pairId"`
+	Owner          uint32 `form:"owner" json:"owner"`
+	Limit          uint32 `form:"limit" json:"limit"`
+	IncludeAliases bool   `form:"includeAliases" json:"includeAliases"`
+}
+
+type PlaceOrderParams struct {
+	Price             float64      `json: "price"`
+	Quantity          uint64       `json: "quantity"`
+	PairId            string       `json: "pairId"`
+	OrderId           string       `json: "orderId"`
+	Side              pb.OrderSide `json: "side"`
+	ReplaceOrderId    string       `json: "replaceOrderId"`
+	ImmediateOrCancel bool         `json: "immediateOrCancel"`
+}
+
+type RemoveOrderParams struct {
+	OrderId  string `json: "orderId"`
+	Quantity uint64 `json: "quantity"`
 }

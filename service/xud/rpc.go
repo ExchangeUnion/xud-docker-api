@@ -219,3 +219,55 @@ func (t *RpcClient) GetMnemonic(ctx context.Context) (*pb.GetMnemonicResponse, e
 	req := pb.GetMnemonicRequest{}
 	return client.GetMnemonic(ctx, &req)
 }
+
+func (t *RpcClient) ListPairs(ctx context.Context) (*pb.ListPairsResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.ListPairsRequest{}
+	return client.ListPairs(ctx, &req)
+}
+
+func (t *RpcClient) ListOrders(ctx context.Context, pairId string, owner pb.ListOrdersRequest_Owner, limit uint32, includeAliases bool) (*pb.ListOrdersResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.ListOrdersRequest{
+		PairId:         pairId,
+		Owner:          owner,
+		Limit:          limit,
+		IncludeAliases: includeAliases,
+	}
+	return client.ListOrders(ctx, &req)
+}
+
+func (t *RpcClient) PlaceOrder(ctx context.Context, pairId string, side pb.OrderSide, price float64, quantity uint64, orderId string, replaceOrderId string, immediateOrCancel bool) (*pb.PlaceOrderResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.PlaceOrderRequest{
+		PairId:            pairId,
+		Side:              side,
+		Price:             price,
+		Quantity:          quantity,
+		OrderId:           orderId,
+		ReplaceOrderId:    replaceOrderId,
+		ImmediateOrCancel: immediateOrCancel,
+	}
+	return client.PlaceOrderSync(ctx, &req)
+}
+
+func (t *RpcClient) RemoveOrder(ctx context.Context, orderId string, quantity uint64) (*pb.RemoveOrderResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.RemoveOrderRequest{
+		OrderId:  orderId,
+		Quantity: quantity,
+	}
+	return client.RemoveOrder(ctx, &req)
+}
