@@ -146,7 +146,7 @@ func (t *Service) GetStatus(ctx context.Context) string {
 
 	// container is running
 
-	info, err := t.GetInfo()
+	info, err := t.GetInfo(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "Wallet is encrypted") {
 			return "Wallet locked. Unlock with lncli unlock."

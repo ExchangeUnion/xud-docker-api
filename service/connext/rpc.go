@@ -26,7 +26,7 @@ func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService)
 		url:            url,
 		healthEndpoint: fmt.Sprintf("%s/health", url),
 		client:         &http.Client{},
-		logger:         service.GetLogger().WithField("scope", "RPC"),
+		logger:         service.GetLogger().WithField("name", fmt.Sprintf("service.%s.rpc", service.GetName())),
 		service:        service,
 	}
 }

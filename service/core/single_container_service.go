@@ -217,9 +217,9 @@ func (t *SingleContainerService) Exec1(command []string) (string, error) {
 	execId := createResp.ID
 
 	// ContainerExecAttach = ContainerExecStart
-	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecConfig{
-		AttachStdout: true,
-		AttachStderr: true,
+	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecStartCheck{
+		Detach: true,
+		Tty: true,
 	})
 	if err != nil {
 		return "", err
@@ -264,7 +264,7 @@ func (t *SingleContainerService) ExecInteractive(command []string) (string, io.R
 	t.logger.Infof("Created exec: %v", execId)
 
 	// ContainerExecAttach = ContainerExecStart
-	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecConfig{})
+	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecStartCheck{})
 	if err != nil {
 		return execId, nil, nil, err
 	}

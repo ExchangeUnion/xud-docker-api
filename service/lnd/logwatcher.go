@@ -68,7 +68,7 @@ func NewLogWatcher(containerName string, service *core.SingleContainerService) *
 		p1:              p1,
 		p2:              p2,
 		neutrinoSyncing: NeutrinoSyncing{current: 0, total: 0, done: false},
-		logger:          service.GetLogger().WithField("scope", "LogWatcher"),
+		logger:          service.GetLogger().WithField("name", fmt.Sprintf("service.%s.logwatcher", service.GetName())),
 		service:         service,
 	}
 	return w
@@ -111,8 +111,9 @@ func (t *LogWatcher) Start() {
 		line = strings.TrimSpace(line)
 
 		if t.p0.MatchString(line) {
-			t.logger.Debugf("*** %s", line)
+			//t.logger.Debugf("*** %s", line)
 			t.neutrinoSyncing.current = t.getNumber(t.p0, line)
+			t.logger.Debugf("current=%d", t.neutrinoSyncing.current)
 			if t.neutrinoSyncing.current < t.neutrinoSyncing.total {
 				t.neutrinoSyncing.current = t.neutrinoSyncing.total
 			} else if t.neutrinoSyncing.current > t.neutrinoSyncing.total {
@@ -120,11 +121,13 @@ func (t *LogWatcher) Start() {
 			}
 			t.neutrinoSyncing.done = true
 		} else if t.p1.MatchString(line) {
-			t.logger.Debugf("*** %s", line)
+			//t.logger.Debugf("*** %s", line)
 			t.neutrinoSyncing.current = t.getNumber(t.p1, line)
+			t.logger.Debugf("current=%d", t.neutrinoSyncing.current)
 		} else if t.p2.MatchString(line) {
-			t.logger.Debugf("*** %s", line)
+			//t.logger.Debugf("*** %s", line)
 			t.neutrinoSyncing.total = t.getNumber(t.p2, line)
+			t.logger.Debugf("total=%d", t.neutrinoSyncing.total)
 		} else if line == "--- EOF ---" {
 			t.logger.Debugf("Reset Neutrino syncing state")
 			t.neutrinoSyncing.current = 0
