@@ -158,6 +158,18 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 
+	r.GET("/v1/xud/orderbook", func(c *gin.Context) {
+		var params OrderBookParams
+		err := c.BindQuery(&params)
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusBadRequest)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
+		defer cancel()
+		resp, err := t.OrderBook(ctx, params.PairId, params.Precision, params.Limit)
+		utils.HandleProtobufResponse(c, resp, err)
+	})
+
 	r.POST("/v1/xud/placeorder", func(c *gin.Context) {
 		var params PlaceOrderParams
 		err := c.BindJSON(&params)
@@ -207,6 +219,12 @@ type ListOrdersParams struct {
 	Owner          uint32 `form:"owner" json:"owner"`
 	Limit          uint32 `form:"limit" json:"limit"`
 	IncludeAliases bool   `form:"includeAliases" json:"includeAliases"`
+}
+
+type OrderBookParams struct {
+	PairId    string `form:"pairId" json:"pairId"`
+	Precision int32  `form:"precision" json:"precision"`
+	Limit     uint32 `form:"limit" json:"limit"`
 }
 
 type PlaceOrderParams struct {

@@ -243,6 +243,19 @@ func (t *RpcClient) ListOrders(ctx context.Context, pairId string, owner pb.List
 	return client.ListOrders(ctx, &req)
 }
 
+func (t *RpcClient) OrderBook(ctx context.Context, pairId string, precision int32, limit uint32) (*pb.OrderBookResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
+	req := pb.OrderBookRequest{
+		PairId:    pairId,
+		Precision: precision,
+		Limit:     limit,
+	}
+	return client.OrderBook(ctx, &req)
+}
+
 func (t *RpcClient) PlaceOrder(ctx context.Context, pairId string, side pb.OrderSide, price float64, quantity uint64, orderId string, replaceOrderId string, immediateOrCancel bool) (*pb.PlaceOrderResponse, error) {
 	client, err := t.getClient()
 	if err != nil {
