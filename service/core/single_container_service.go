@@ -218,8 +218,8 @@ func (t *SingleContainerService) Exec1(command []string) (string, error) {
 
 	// ContainerExecAttach = ContainerExecStart
 	attachResp, err := t.dockerClient.ContainerExecAttach(ctx, execId, types.ExecStartCheck{
-		Detach: true,
-		Tty: true,
+		//Detach: true,
+		//Tty: true,
 	})
 	if err != nil {
 		return "", err
