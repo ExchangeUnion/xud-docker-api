@@ -52,11 +52,11 @@ func (t *RpcClient) Close() error {
 }
 
 func (t *RpcClient) getClient() (pb.LightningClient, error) {
-	client := t.conn.GetClient().(pb.LightningClient)
+	client := t.conn.GetClient()
 	if client == nil {
 		return nil, errNoClient
 	}
-	return client, nil
+	return client.(pb.LightningClient), nil
 }
 
 func (t *RpcClient) GetInfo(ctx context.Context) (*pb.GetInfoResponse, error) {
