@@ -336,7 +336,7 @@ service Xud {
     };
   }
 
-  /* Subscribes to accepted swaps. This stream emits a message when the local xud node 
+  /* Subscribes to accepted swaps. This stream emits a message when the local xud node
    * accepts a swap request from a peer, but before the swap has actually succeeded. */
   rpc SubscribeSwapsAccepted(SubscribeSwapsAcceptedRequest) returns (stream SwapAccepted) {
     option (google.api.http) = {

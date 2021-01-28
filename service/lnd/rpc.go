@@ -5,24 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/rpc"
 	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	pb "github.com/ExchangeUnion/xud-docker-api/service/lnd/lnrpc"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"os"
-	"sync"
-	"time"
 )
 
-const (
-	RpcRetryDelay = 3 * time.Second
+var (
+	errNoClient     = errors.New("no client")
 )
 
 type RpcClient struct {
-	mutex   *sync.Mutex
-	client  pb.LightningClient
-	conn    *grpc.ClientConn
+	conn *rpc.GrpcConn
+
 	logger  *logrus.Entry
 	service *core.SingleContainerService
 }
@@ -33,79 +29,41 @@ func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService)
 	tlsCert := config["tlsCert"].(string)
 	macaroon := config["macaroon"].(string)
 
-	c := &RpcClient{
-		mutex:   &sync.Mutex{},
-		client:  nil,
-		logger:  service.GetLogger().WithField("scope", "RPC"),
+	logger := service.GetLogger().WithField("name", fmt.Sprintf("service.%s.rpc", service.GetName()))
+
+	conn := rpc.NewGrpcConn(host, port, tlsCert, macaroon, logger, func(conn *grpc.ClientConn) interface{}{
+		return pb.NewLightningClient(conn)
+	})
+
+	go conn.Open()
+
+	return &RpcClient{
+		conn: conn,
+		logger: logger,
 		service: service,
-	}
-
-	go c.lazyInit(host, port, tlsCert, macaroon)
-
-	return c
-}
-
-func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string, macaroon string) {
-	for {
-		creds, err := credentials.NewClientTLSFromFile(tlsCert, "localhost")
-		if err != nil {
-			t.logger.Warnf("Failed to create gRPC TLS credentials: %s", err)
-			time.Sleep(RpcRetryDelay)
-			continue
-		}
-
-		var opts []grpc.DialOption
-		opts = append(opts, grpc.WithTransportCredentials(creds))
-		opts = append(opts, grpc.WithBlock())
-
-		if _, err := os.Stat(macaroon); os.IsNotExist(err) {
-			t.logger.Warnf("Waiting for %s", macaroon)
-			time.Sleep(RpcRetryDelay)
-			continue
-		}
-
-		opts = append(opts, grpc.WithPerRPCCredentials(&MacaroonCredential{Readonly: macaroon}))
-
-		t.logger.Debug("Waiting for a running container")
-		t.service.WaitContainerRunning()
-
-		addr := fmt.Sprintf("%s:%d", host, port)
-		t.logger.Debugf("Trying to connect with addr=%s tlsCert=%s macaroon=%s", addr, tlsCert, macaroon)
-		ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-		conn, err := grpc.DialContext(ctx, addr, opts...)
-		//cancel() // prevent context resource leak
-		if err != nil {
-			t.logger.Warnf("Failed to create gRPC connection: %s", err)
-			time.Sleep(RpcRetryDelay)
-			continue
-		}
-
-		t.logger.Debugf("Created gRPC connection")
-		t.conn = conn
-
-		t.mutex.Lock()
-		t.client = pb.NewLightningClient(conn)
-		t.mutex.Unlock()
-
-		break
 	}
 }
 
 func (t *RpcClient) Close() error {
-	err := t.conn.Close()
-	if err != nil {
+	if err := t.conn.Close(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (t *RpcClient) GetInfo() (*pb.GetInfoResponse, error) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	if t.client == nil {
-		return nil, errors.New("no client")
+func (t *RpcClient) getClient() (pb.LightningClient, error) {
+	client := t.conn.GetClient()
+	if client == nil {
+		return nil, errNoClient
 	}
+	return client.(pb.LightningClient), nil
+}
 
+func (t *RpcClient) GetInfo(ctx context.Context) (*pb.GetInfoResponse, error) {
+	client, err := t.getClient()
+	if err != nil {
+		return nil, err
+	}
 	req := pb.GetInfoRequest{}
-	return t.client.GetInfo(context.Background(), &req)
+	return client.GetInfo(ctx, &req)
 }

@@ -5,119 +5,75 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ExchangeUnion/xud-docker-api/config"
+	"github.com/ExchangeUnion/xud-docker-api/rpc"
 	"github.com/ExchangeUnion/xud-docker-api/service/core"
 	"github.com/ExchangeUnion/xud-docker-api/service/xud/xudrpc"
 	pb "github.com/ExchangeUnion/xud-docker-api/service/xud/xudrpc"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"sync"
-	"time"
-)
-
-const (
-	RetryDelay         = 3 * time.Second
-	GrpcConnectTimeout = 3 * time.Second
 )
 
 var (
-	NoClient     = errors.New("no client")
-	NoInitClient = errors.New("no init client")
+	errNoClient     = errors.New("no client")
+	errNoInitClient = errors.New("no init client")
 )
 
 type RpcClient struct {
-	client     xudrpc.XudClient
-	initClient xudrpc.XudInitClient
-	conn       *grpc.ClientConn
-	mutex      *sync.RWMutex
+	conn *rpc.GrpcConn
 
 	logger  *logrus.Entry
 	service *core.SingleContainerService
 }
 
-func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService) *RpcClient {
+type Clients struct {
+	Client     pb.XudClient
+	InitClient pb.XudInitClient
+}
 
+func NewRpcClient(config config.RpcConfig, service *core.SingleContainerService) *RpcClient {
 	host := config["host"].(string)
 	port := uint16(config["port"].(float64))
 	tlsCert := config["tlsCert"].(string)
 
-	c := &RpcClient{
-		client:     nil,
-		initClient: nil,
-		conn:       nil,
-		mutex:      &sync.RWMutex{},
+	logger := service.GetLogger().WithField("name", fmt.Sprintf("service.%s.rpc", service.GetName()))
 
-		logger:  service.GetLogger().WithField("scope", "RPC"),
+	conn := rpc.NewGrpcConn(host, port, tlsCert, "", logger, func(conn *grpc.ClientConn) interface{} {
+		return Clients{
+			Client:     pb.NewXudClient(conn),
+			InitClient: pb.NewXudInitClient(conn),
+		}
+	})
+
+	go conn.Open()
+
+	return &RpcClient{
+		conn:    conn,
+		logger:  logger,
 		service: service,
-	}
-
-	go c.lazyInit(host, port, tlsCert)
-
-	return c
-}
-
-func (t *RpcClient) lazyInit(host string, port uint16, tlsCert string) {
-	for {
-		creds, err := credentials.NewClientTLSFromFile(tlsCert, "localhost")
-		if err != nil {
-			time.Sleep(RetryDelay)
-			continue
-		}
-
-		var opts []grpc.DialOption
-		opts = append(opts, grpc.WithTransportCredentials(creds))
-		opts = append(opts, grpc.WithBlock())
-
-		t.logger.Debug("Waiting for a running container")
-		t.service.WaitContainerRunning()
-
-		ctx, cancel := context.WithTimeout(context.Background(), GrpcConnectTimeout)
-		addr := fmt.Sprintf("%s:%d", host, port)
-		t.logger.Debugf("Trying to connect with addr=%s tlsCert=%s macaroon=%s", addr, tlsCert)
-		conn, err := grpc.DialContext(ctx, addr, opts...)
-		cancel() // TODO make sure this won't close the conn
-		if err != nil {
-			t.logger.Warnf("Failed to create gRPC connection: %s", err)
-			time.Sleep(RetryDelay)
-			continue
-		}
-
-		t.logger.Debugf("Created gRPC connection")
-		t.conn = conn
-
-		t.mutex.Lock()
-		t.client = pb.NewXudClient(conn)
-		t.initClient = pb.NewXudInitClient(conn)
-		t.mutex.Unlock()
-
-		break
 	}
 }
 
 func (t *RpcClient) Close() error {
-	err := t.conn.Close()
-	if err != nil {
+	if err := t.conn.Close(); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (t *RpcClient) getClient() (xudrpc.XudClient, error) {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	if t.client == nil {
-		return nil, NoClient
+	clients := t.conn.GetClient()
+	if clients == nil {
+		return nil, errNoClient
 	}
-	return t.client, nil
+	return clients.(Clients).Client, nil
 }
 
 func (t *RpcClient) getInitClient() (xudrpc.XudInitClient, error) {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	if t.client == nil {
-		return nil, NoInitClient
+	clients := t.conn.GetClient()
+	if clients == nil {
+		return nil, errNoInitClient
 	}
-	return t.initClient, nil
+	return clients.(Clients).InitClient, nil
 }
 
 func (t *RpcClient) GetInfo(ctx context.Context) (*pb.GetInfoResponse, error) {

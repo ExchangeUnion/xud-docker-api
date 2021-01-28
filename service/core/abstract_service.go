@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -15,7 +16,7 @@ type AbstractService struct {
 }
 
 func NewAbstractService(name string, services map[string]Service) *AbstractService {
-	logger := logrus.NewEntry(logrus.StandardLogger()).WithField("service", name)
+	logger := logrus.NewEntry(logrus.StandardLogger()).WithField("name", fmt.Sprintf("service.%s", name))
 
 	return &AbstractService{
 		name:     name,

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -37,7 +38,6 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 	})
 
 	r.GET("/v1/xud/tradehistory", func(c *gin.Context) {
-
 		limitStr := c.DefaultQuery("limit", "0")
 		limit, err := strconv.ParseUint(limitStr, 10, 32)
 		if err != nil {
@@ -129,6 +129,10 @@ func (t *Service) ConfigureRouter(r *gin.RouterGroup) {
 		ctx, cancel := context.WithTimeout(context.Background(), config.DefaultApiTimeout)
 		defer cancel()
 		resp, err := t.ChangePassword(ctx, params.NewPassword, params.OldPassword)
+		err = os.Remove("/root/network/.default-password")
+		if err != nil {
+			utils.JsonError(c, err.Error(), http.StatusInternalServerError)
+		}
 		utils.HandleProtobufResponse(c, resp, err)
 	})
 

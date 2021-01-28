@@ -64,6 +64,7 @@ func (t *Service) checkNode(node Node) NodeStatus {
 	if err == nil {
 		return NodeStatus{Status: string(node) + " up", IsUp: true}
 	} else {
+		t.logger.Errorf("get info: %s", err)
 		return NodeStatus{Status: string(node) + " down", IsUp: false}
 	}
 }

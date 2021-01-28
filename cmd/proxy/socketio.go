@@ -25,22 +25,32 @@ func NewSioServer(network string) (*socketio.Server, error) {
 		logger.Fatal(err)
 	}
 	server.OnConnect("/", func(s socketio.Conn) error {
-		s.SetContext("")
-		logger.Infof("[SocketIO] New client connected: ID=%v, RemoteAddr=%v", s.ID(), s.RemoteAddr())
+		logger.Debugf("[SocketIO/%s] CONNECT: RemoteAddr=%v", s.ID(), s.RemoteAddr())
+		t := s.RemoteHeader().Get("X-Type")
+		if t != "" {
+			logger.Debugf("[SocketIO/%s] Type=%s", s.ID(), t)
+			logger.Debugf("[SocketIO/%s] User-Agent=%s", s.ID(), s.RemoteHeader().Get("User-Agent"))
+			s.Join("launchers")
+			s.Emit("welcome! registered launcher id")
+		}
 		return nil
 	})
 	server.OnError("/", func(s socketio.Conn, e error) {
-		removeConsoles(s.ID())
-		logger.Errorf("[SocketIO] Client %v got an error: %v", s.ID(), e)
+		if s != nil {
+			//removeConsoles(s.ID())
+			//logger.Debugf("[SocketIO/%s] ERROR: %s", s.ID(), e)
+			logger.Debugf("[SocketIO/%v] ERROR: %s", s.ID(), e)
+		} else {
+			logger.Debugf("[SocketIO] ERROR: %s", e)
+		}
 	})
-
 	server.OnDisconnect("/", func(s socketio.Conn, reason string) {
 		removeConsoles(s.ID())
-		logger.Infof("[SocketIO] Client %v disconnected: %v", s.ID(), reason)
+		logger.Infof("[SocketIO/%s] DISCONNECTED: %s", s.ID(), reason)
 	})
 
 	server.OnEvent("/", "test", func(s socketio.Conn, data string) {
-		logger.Debugf("test: %v", data)
+		logger.Debugf("[SocketIO/%s] TEST: %s", s.ID(), data)
 	})
 
 	return server, nil
